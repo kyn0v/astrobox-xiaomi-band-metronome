@@ -99,11 +99,37 @@ test('unchanged tempo and unrelated preferences do not rebuild the wheel', () =>
   assert.equal(h.tempo.pickerEntries, entries)
 })
 
-test('picker uses intrinsic height and official example font sizes rather than a clipped fixed viewport', () => {
+test('wheel and wrapper use intrinsic height with equal selected/candidate font metrics', () => {
   const source = fs.readFileSync(path.join(__dirname, '../src/pages/tempo/index.ux'), 'utf8')
+  for (const selector of ['tempo-picker', 'tempo-value']) {
+    const style = source.match(new RegExp('\\.' + selector + ' \\{([^}]+)\\}'))[1]
+    assert.doesNotMatch(style, /(?:^|;)\s*(?:height|min-height|max-height)\s*:/)
+    assert.match(style, /flex-shrink: 0/)
+  }
   const style = source.match(/\.tempo-picker \{([^}]+)\}/)[1]
-  assert.doesNotMatch(style, /(?:^|;)\s*(?:height|min-height|max-height)\s*:/)
-  assert.match(style, /font-size: 25px/)
-  assert.match(style, /selected-font-size: 30px/)
+  const normal = style.match(/(?:^|;)\s*font-size:\s*(\d+px)/)[1]
+  const selected = style.match(/selected-font-size:\s*(\d+px)/)[1]
+  assert.equal(selected, normal)
+  assert.match(source, /selected-background-color: \{\{ colors.background \}\}/)
   assert.match(source, /for="\{\{ pickerEntries \}\}" tid="id"/)
+})
+
+test('unit label exposes the committed BPM independently of native wheel rendering', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../src/pages/tempo/index.ux'), 'utf8')
+  assert.match(source, /<text class="unit">\{\{ bpm \}\}/)
+  assert.match(source, /\.unit \{[^}]*flex-shrink: 0/)
+  const h = setup({ preferences: { bpm: 181 } })
+  const entries = h.tempo.pickerEntries
+  for (const bpm of [158, 159, 160, 153, 154]) {
+    h.tempo.onNativePickerChange(entries[0].id, { newValue: String(bpm), newSelected: bpm - 50 })
+    assert.equal(h.tempo.bpm, bpm)
+    assert.equal(h.stored().bpm, bpm)
+    assert.equal(h.tempo.pickerEntries, entries)
+  }
+  h.tempo.onHide()
+  h.page.onShow()
+  assert.equal(h.page.bpm, 154)
+  h.page.onHide()
+  h.tempo.onShow()
+  assert.equal(h.tempo.bpm, 154)
 })

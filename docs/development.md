@@ -19,8 +19,8 @@ npm test
 npm run build
 ```
 
-Current identity: `org.bandmetronome.app`, version **0.5.7**, version code **15**.
-Output: `dist/org.bandmetronome.app.debug.0.5.7.rpk`.
+Current identity: `org.bandmetronome.app`, version **0.5.8**, version code **16**.
+Output: `dist/org.bandmetronome.app.debug.0.5.8.rpk`.
 
 This is a debug **application package, not firmware**, signed with the toolkit's
 shared development key. There are no runtime npm dependencies in the app; npm
@@ -135,9 +135,12 @@ hardware brightness. Position dots continue when Flash is disabled.
 - Moved touches suppress synthetic clicks for 350 ms. Native picker touch streams
   are excluded from navigation.
 - Tempo uses the official `picker type="text"` with 201 string options (50–250).
-  Version 0.5.7 uses the official example's intrinsic height and 25/30 px fonts
-  instead of a fixed-height viewport with a much larger selected font. This targets
-  the reported between-row stopping; actual alignment still needs device testing.
+  Version 0.5.8 uses identical 28 px fonts for candidate and selected rows,
+  distinguishing selection by color only. Both the wheel and its wrapper use
+  intrinsic height; the unit label cannot shrink and includes the current BPM.
+  This targets the reported overlapping digits and clipped label. Logical and
+  stylesheet regression tests do not verify native rendering; device testing is
+  still required.
 - `selected` is an initialization index (`bpm - 50`), not a feedback binding to BPM.
   Wheel changes read the selected `newValue`, as in the official example; an index
   is a fallback only when the value is absent. Saving a wheel selection never
