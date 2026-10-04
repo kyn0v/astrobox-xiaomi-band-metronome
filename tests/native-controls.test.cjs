@@ -34,12 +34,14 @@ test('native click activation has no coordinate or preceding-touch requirement',
   }
 })
 
-test('native slider excludes its bubbled touches from page navigation', () => {
-  assert.ok(!homeTemplate.includes('<slider'))
-  const slider = tempoTemplate.match(/<slider\b[^>]*>/)[0]
-  assert.match(slider, /onchange="onSliderChange"/)
-  assert.doesNotMatch(slider, /onswipe/)
-  assert.match(slider, /ontouchstart="onSliderTouchStart"/)
+test('native picker excludes its bubbled touches from page navigation', () => {
+  assert.ok(!homeTemplate.includes('<picker'))
+  assert.ok(!tempoTemplate.includes('<slider'))
+  const picker = tempoTemplate.match(/<picker\b[^>]*>/)[0]
+  assert.match(picker, /type="text"/)
+  assert.match(picker, /onchange="onPickerChange"/)
+  assert.doesNotMatch(picker, /onswipe/)
+  assert.match(picker, /ontouchstart="onPickerTouchStart"/)
   for (const template of [homeTemplate, tempoTemplate]) {
     assert.match(template, /<div class="page"[^>]*ontouchstart="onPageTouchStart"/)
     assert.match(template, /ontouchmove="onPageTouchMove"/)
@@ -65,7 +67,7 @@ test('four focused pages omit exit/back buttons, global vibration modes, and res
 test('tap target is circular and output icons have no background plate', () => {
   assert.match(tempoSource, /\.tap \{ width: 192px; height: 192px;.*border-radius: 96px/)
   assert.match(tempoTemplate, /id="tap".*type="button".*onclick="tapTempo"/)
-  assert.match(tempoTemplate, /min="50" max="250" step="1"/)
+  assert.match(tempoTemplate, /range="\{\{ bpmOptions \}\}" selected="\{\{ bpm - minBpm \}\}"/)
   const quickStyle = homeSource.match(/\.quick \{([^}]+)\}/)[1]
   assert.doesNotMatch(quickStyle, /background/)
   for (const tag of homeTemplate.matchAll(/<div class="quick"[^>]*>/g)) assert.doesNotMatch(tag[0], /background/)

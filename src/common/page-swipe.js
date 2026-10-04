@@ -1,6 +1,6 @@
 // Vela touch events bubble; swipe only recognizes quick flicks and does not bubble.
 // Listen on the page, not an overlay. Native buttons still own taps and the native
-// slider explicitly excludes its touch stream. No speed threshold for navigation.
+// picker explicitly excludes its touch stream. No speed threshold for navigation.
 function createPageSwipe(now) {
   now = now || (() => Date.now())
   let active = null

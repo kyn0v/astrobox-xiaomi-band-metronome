@@ -74,13 +74,13 @@ test('four directions use axis locking; diagonal and changing-axis motion cannot
   assert.equal(g.end(end(touch(260, 180))), null) // Vertical then horizontal is not a back gesture.
 })
 
-test('native slider touch exclusion survives bubbling and never returns/exits', () => {
+test('native picker touch exclusion survives bubbling and never returns/exits', () => {
   const h = pageHarness()
   h.page.onHide()
   const tempo = h.createPage('tempo')
-  tempo.onSliderTouchStart() // Child receives touchstart before its parent.
+  tempo.onPickerTouchStart() // Child receives touchstart before its parent.
   swipe(tempo, touch(30), touch(290), h.clock)
-  tempo.onSliderChange({ progress: 173, isFromUser: true })
+  tempo.onPickerChange({ newSelected: 123, newValue: '173' })
   tempo.tapTempo() // Ignore any synthetic click after dragging.
   assert.equal(tempo.bpm, 173)
   assert.equal(h.stored().bpm, 173)

@@ -19,8 +19,8 @@ npm test
 npm run build
 ```
 
-Current identity: `org.bandmetronome.app`, version **0.5.5**, version code **13**.
-Output: `dist/org.bandmetronome.app.debug.0.5.5.rpk`.
+Current identity: `org.bandmetronome.app`, version **0.5.6**, version code **14**.
+Output: `dist/org.bandmetronome.app.debug.0.5.6.rpk`.
 
 This is a debug **application package, not firmware**, signed with the toolkit's
 shared development key. There are no runtime npm dependencies in the app; npm
@@ -87,7 +87,7 @@ Chinese translations. Update both languages together.
 | `src/common/page-swipe.js` | Four-direction touch observer and click suppression |
 | `src/common/themes.js` | Four palettes and pulse colors |
 | `src/pages/index/index.ux` | Practice and navigation |
-| `src/pages/tempo/index.ux` | Native slider and circular Tap Tempo |
+| `src/pages/tempo/index.ux` | Native number picker and circular Tap Tempo |
 | `src/pages/rhythm/index.ux` | Meter selection and editable cells |
 | `src/pages/appearance/index.ux` | Theme swatches |
 | `scripts/generate-icons.py` | Original transparent icons, using standard Python |
@@ -126,14 +126,20 @@ hardware brightness. Position dots continue when Flash is disabled.
 - Apply cached preferences synchronously during `onInit`, before first render.
   Keep retained pages synchronized while hidden and unsubscribe on destruction.
 - Gate controls only during cold loading. Do not reset `ready` and remount the
-  slider on ordinary navigation; this previously caused default-value flashes.
+  picker on ordinary navigation; remounting previously caused default-value flashes.
 - Keep rhythm cells identified by `tid`, with stable unchanged cells and rows.
   Unrelated settings or save-status updates must not rebuild the entire grid.
 - Vela's `swipe` recognizes quick flicks and does not bubble. The page observes
   documented bubbling touch events instead, using viewport coordinates, a 36 px
   threshold and 1.5:1 dominant axis. Axis locking rejects direction-changing drags.
-- Moved touches suppress synthetic clicks for 350 ms. Native slider touch streams
-  are excluded from navigation. Native buttons still own hit-testing; no overlays.
+- Moved touches suppress synthetic clicks for 350 ms. Native picker touch streams
+  are excluded from navigation.
+- Tempo uses the official `picker type="text"` with 201 string options (50–250).
+  `selected` is the zero-based index, `bpm - 50`; `change.newSelected` maps back to
+  BPM. The wheel renders scrolling itself and a confirmed selection saves the
+  value. Same-value programmatic echoes must not write, retry a failed save, or
+  reset tap sampling. There is no touch-coordinate estimate or custom slider.
+  Native wheel rendering, inertia and interaction still need Band 9 Pro testing. Native buttons still own hit-testing; no overlays.
 - System back and custom right-swipe share a navigation latch. The first system
   back cleans up and returns false; an already-pending navigation returns true.
   Reset the latch on `onShow`. Verify both event orders in tests and on-device.
@@ -172,7 +178,9 @@ and unit tests are not device-compatibility evidence.
    still advances without a motor pulse. Stop/restart begins at slot 1.
 5. At 6/8 and 60 BPM, verify six positions over two seconds. Edit slot 4, switch
    meters and return; each meter retains its own pattern.
-6. Test slider endpoints 50 and 250 BPM. Dragging must not navigate. At high tempos,
+6. Test the wheel at 50, 120, 173 and 250 BPM, including fast scrolling. Check
+   readability, selected-row alignment and returning to the saved value. Wheel
+   drags must not navigate or press Tap Tempo. At high tempos,
    check visual timing first; choose Short/None if motor pulses merge.
 7. Tap at 500 ms intervals in simple meters: expect 120 BPM. In 6/8, tap main beats
    at 1000 ms intervals: expect 60 BPM. Neither action should start playback.
@@ -224,7 +232,7 @@ build tools or remove advisories. Use trusted projects and archives.
 
 - [AIoT-IDE](https://iot.mi.com/vela/quickapp/zh/guide/start/use-ide.html)
 - [Native button](https://iot.mi.com/vela/quickapp/zh/components/form/input.html)
-- [Native slider](https://iot.mi.com/vela/quickapp/zh/components/form/slider.html)
+- [Native picker](https://iot.mi.com/vela/quickapp/zh/components/form/picker.html)
 - [Touch/swipe events](https://iot.mi.com/vela/quickapp/zh/components/general/events.html)
 - [Page lifecycle and system back](https://iot.mi.com/vela/quickapp/zh/guide/framework/script/lifecycle.html)
 - [Vibration support](https://iot.mi.com/vela/quickapp/zh/features/system/vibrator.html)

@@ -17,13 +17,13 @@ function observeMount(page) {
   return states
 }
 
-test('tempo controls are conditionally created, not merely hidden with a default slider value', () => {
+test('tempo picker is conditionally created, not merely hidden with a default selection', () => {
   const source = fs.readFileSync(path.join(__dirname, '../src/pages/tempo/index.ux'), 'utf8')
   const template = source.split('<script>')[0]
   const gate = template.indexOf('<div class="content" if="{{ ready }}">')
   assert.ok(gate > 0)
-  assert.ok(template.indexOf('<text class="bpm">') > gate)
-  assert.ok(template.indexOf('<slider ') > gate)
+  assert.ok(template.indexOf('<picker ') > gate)
+  assert.match(template, /selected="\{\{ bpm - minBpm \}\}"/)
   assert.match(template, /class="loading" if="\{\{ !ready \}\}"/)
   // Back/swipe must remain attached to the always-present outer page.
   assert.ok(template.indexOf('ontouchend="onPageTouchEnd"') < gate)
@@ -35,8 +35,7 @@ test('first deferred load mounts once with saved BPM, meter and status and never
   const tempo = h.createPage('tempo')
   const mounts = observeMount(tempo)
   assert.equal(tempo.ready, false)
-  tempo.onSliderChange({ progress: 120, isFromUser: false })
-  tempo.onSliderChange({ progress: 120, isFromUser: true })
+  tempo.onPickerChange({ newSelected: 70, newValue: '120' })
   h.finishLoad()
   assert.deepEqual(mounts, [{ bpm: 173, meter: '6/8', warning: false }])
   assert.deepEqual(h.calls.writes, [])
@@ -60,7 +59,7 @@ test('retained tempo pages stay current while hidden and do not remount on retur
   const mounts = observeMount(tempo)
   tempo.onShow()
   assert.deepEqual(mounts, [])
-  tempo.onSliderChange({ progress: 120, isFromUser: false })
+  tempo.onPickerChange({ newSelected: 161, newValue: '211' }) // Native selection echo.
   assert.equal(h.calls.writes.length, writes)
   assert.equal(h.stored().bpm, 211)
   tempo.onHide()
