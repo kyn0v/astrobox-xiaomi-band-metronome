@@ -80,8 +80,8 @@ test('native picker touch exclusion survives bubbling and never returns/exits', 
   const tempo = h.createPage('tempo')
   tempo.onPickerTouchStart() // Child receives touchstart before its parent.
   swipe(tempo, touch(30), touch(290), h.clock)
-  tempo.onNativePickerChange(tempo.pickerEntries[0].id, { newValue: '170' })
-  tempo.onNativePickerChange(tempo.pickerEntries[1].id, { newValue: '3' })
+  tempo.onNativePickerChange(tempo.pickerEntries[1].id, { newValue: '7' })
+  tempo.onNativePickerChange(tempo.pickerEntries[2].id, { newValue: '3' })
   tempo.tapTempo() // Ignore any synthetic click after dragging.
   assert.equal(tempo.bpm, 173)
   assert.equal(h.stored().bpm, 173)

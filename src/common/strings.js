@@ -1,11 +1,10 @@
 // Follow the device locale; unsupported languages fall back to English.
 const en = {
   title: 'METRONOME', tempo: 'TEMPO', rhythm: 'RHYTHM', appearance: 'COLORS',
-  start: 'Start', stop: 'Stop', tap: 'Tap Tempo', tapHint: 'Tap 4 times',
+  start: 'Start', stop: 'Stop', tap: 'Tap Tempo',
   tapping: 'Taps', tapReady: 'Tempo detected', tapRange: 'Use 50–250 BPM',
-  tapQuarter: 'Tap each quarter-note beat', tapDotted: 'Tap the two main beats',
+  tapQuarter: 'Tap along with the beat', tapDotted: 'Tap the two main beats',
   quarterUnit: 'Quarter-note BPM', dottedUnit: 'Dotted-quarter BPM',
-  tempoTens: 'Tens', tempoOnes: '+ Ones',
   loading: 'Loading preferences...', ready: '← Tempo   ↑ Rhythm   ↓ Colors',
   running: 'Playing', stopped: 'Stopped',
   screenError: 'Keep-screen-on unavailable', vibrationError: 'Vibration unavailable',
@@ -28,11 +27,10 @@ const en = {
 
 const zh = {
   title: '节拍器', tempo: '调整速度', rhythm: '节拍编排', appearance: '主题配色',
-  start: '开始', stop: '停止', tap: '击拍测速', tapHint: '跟随节奏点击 4 次',
+  start: '开始', stop: '停止', tap: '击拍测速',
   tapping: '已点击', tapReady: '已识别速度', tapRange: '请使用 50–250 BPM',
-  tapQuarter: '跟随四分音符拍点击', tapDotted: '跟随每小节的两个大拍点击',
+  tapQuarter: '跟随节拍点击', tapDotted: '跟随两大拍点击',
   quarterUnit: '四分音符 BPM', dottedUnit: '附点四分音符 BPM',
-  tempoTens: '整十', tempoOnes: '＋ 个位',
   loading: '正在读取偏好', ready: '← 调速  ↑ 节拍  ↓ 配色',
   running: '播放中', stopped: '已停止',
   screenError: '无法保持亮屏', vibrationError: '振动不可用',

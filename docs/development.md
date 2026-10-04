@@ -19,8 +19,8 @@ npm test
 npm run build
 ```
 
-Current identity: `org.bandmetronome.app`, version **0.5.9**, version code **17**.
-Output: `dist/org.bandmetronome.app.debug.0.5.9.rpk`.
+Current identity: `org.bandmetronome.app`, version **0.5.10**, version code **18**.
+Output: `dist/org.bandmetronome.app.debug.0.5.10.rpk`.
 
 This is a debug **application package, not firmware**, signed with the toolkit's
 shared development key. There are no runtime npm dependencies in the app; npm
@@ -134,15 +134,21 @@ hardware brightness. Position dots continue when Flash is disabled.
   threshold and 1.5:1 dominant axis. Axis locking rejects direction-changing drags.
 - Moved touches suppress synthetic clicks for 350 ms. Native picker touch streams
   are excluded from navigation.
-- Tempo uses two official `picker type="text"` wheels: 21 tens options (50, 60,
-  …, 250) plus 10 ones options (0–9). At 250 the ones wheel is replaced with a
-  single zero; leaving 250 restores 0–9, initially at zero. The combined BPM is
-  displayed below the wheels. Version 0.5.9 avoids the previous 201-item list.
+- Tempo uses three equal-width official `picker type="text"` digit wheels in
+  hundreds/tens/ones order. Each has at most ten options. Values below 100 show a
+  leading zero (050). Tens are limited to 5–9 for hundreds=0 and 0–5 for hundreds=2;
+  at 250 the ones wheel is locked to zero. Changing hundreds preserves ones and
+  adjusts tens if needed (199 → 249, 123 → 053). Explicitly selecting tens=5 in
+  the 200s resets ones to zero. Leaving 250 restores 0–9.
+  Version 0.5.10 removes column headings, the duplicate combined BPM and the extra
+  tap guide. A single bottom line shows meter-aware guidance, tap progress/result,
+  or save status/error; tapping an error still retries saving.
+  Short wheels avoid the previous 201-item list.
   [LVGL issue #7410](https://github.com/lvgl/lvgl/issues/7410) describes long-list
   coordinate limits causing incorrect selected text, consistent with the reported
   symptoms but not confirmed for this device's firmware. This is a bounded-list
   workaround, not a firmware fix. Native rendering still requires device testing.
-- Both wheels use equal 28 px candidate/selected fonts, intrinsic height and a
+- All three wheels use equal 28 px candidate/selected fonts, intrinsic height and a
   non-shrinking wrapper. Selection is distinguished by color, not font size.
 - `selected` is a per-column initialization index, not a feedback binding to BPM.
   Events read `newValue` first, or fall back to `newSelected`; values must belong
@@ -192,9 +198,9 @@ and unit tests are not device-compatibility evidence.
    still advances without a motor pulse. Stop/restart begins at slot 1.
 5. At 6/8 and 60 BPM, verify six positions over two seconds. Edit slot 4, switch
    meters and return; each meter retains its own pattern.
-6. Test both wheels at 50, 153, 154, 165, 249 and 250 BPM, including fast scrolling.
-   Check 249 → 250 → 240 → 249, ones locking/unlocking, selected-row alignment,
-   the combined BPM and returning to the saved value. Wheel
+6. Test all three wheels at 050, 099, 100, 153, 165, 199, 249 and 250 BPM.
+   Check hundreds switching (199 → 249, 123 → 053), 249 → 250 → 240 → 249,
+   ones locking/unlocking, row alignment, and the saved BPM on Home. Wheel
    drags must not navigate or press Tap Tempo. At high tempos,
    check visual timing first; choose Short/None if motor pulses merge.
 7. Tap at 500 ms intervals in simple meters: expect 120 BPM. In 6/8, tap main beats

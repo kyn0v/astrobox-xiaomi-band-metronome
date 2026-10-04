@@ -6,17 +6,12 @@
     <div class="content" if="{{ ready }}">
       <text class="title">{{ labels.tempo }}</text>
       <div class="tempo-value">
-        <div class="wheel-headings">
-          <text class="wheel-heading">{{ labels.tempoTens }}</text>
-          <text class="wheel-heading">{{ labels.tempoOnes }}</text>
-        </div>
         <div class="wheels">
           <picker for="{{ pickerEntries }}" tid="id" class="tempo-picker" type="text" range="{{ $item.options }}" selected="{{ $item.selected }}" style="selected-color: {{ colors.accent }}; selected-background-color: {{ colors.background }};" ontouchstart="onPickerTouchStart" onchange="onNativePickerChange($item.id)"></picker>
         </div>
-        <text class="unit">{{ bpm }} · {{ meter === '6/8' ? labels.dottedUnit : labels.quarterUnit }}</text>
+        <text class="unit">BPM</text>
       </div>
       <input id="tap" class="tap" style="background-color: {{ tapLit ? colors.pulse : colors.accent }}" type="button" value="{{ labels.tap }}" disabled="{{ !ready }}" onclick="tapTempo" />
-      <text class="tap-guide">{{ meter === '6/8' ? labels.tapDotted : labels.tapQuarter }}</text>
       <text class="hint" onclick="retrySave">{{ warning || status === labels.saving ? status : tapHint }}</text>
     </div>
   </div>
@@ -31,18 +26,28 @@ const { getStrings } = require('../../common/strings')
 const { getTheme } = require('../../common/themes')
 const { createPageSwipe } = require('../../common/page-swipe')
 
-const TENS_OPTIONS = Array.from({ length: 21 }, (_, index) => String(MIN_BPM + index * 10))
-const ONES_OPTIONS = Array.from({ length: 10 }, (_, index) => String(index))
+const DIGITS = Array.from({ length: 10 }, (_, index) => String(index))
+const HUNDREDS = ['0', '1', '2']
+const LOW_TENS = DIGITS.slice(5)
+const HIGH_TENS = DIGITS.slice(0, 6)
 const ZERO_OPTION = ['0']
+
+function digitColumns(bpm) {
+  const hundreds = Math.floor(bpm / 100)
+  const tens = Math.floor(bpm / 10) % 10
+  const tensOptions = hundreds === 0 ? LOW_TENS : hundreds === 2 ? HIGH_TENS : DIGITS
+  return [
+    { options: HUNDREDS, selected: hundreds },
+    { options: tensOptions, selected: tensOptions.indexOf(String(tens)) },
+    { options: bpm === MAX_BPM ? ZERO_OPTION : DIGITS, selected: bpm % 10 }
+  ]
+}
 
 export default {
   private: {
     ready: false, bpm: DEFAULT_BPM, meter: '4/4', colors: getTheme(),
-    pickerEntries: [
-      { id: 0, options: TENS_OPTIONS, selected: (DEFAULT_BPM - MIN_BPM) / 10 },
-      { id: 1, options: ONES_OPTIONS, selected: 0 }
-    ],
-    labels: getStrings('en'), tapHint: 'Tap 4 times', tapLit: false,
+    pickerEntries: digitColumns(DEFAULT_BPM).map((entry, id) => Object.assign({ id }, entry)),
+    labels: getStrings('en'), tapHint: '', tapLit: false,
     status: 'Loading preferences...', warning: false
   },
   onInit() {
@@ -50,7 +55,7 @@ export default {
     this._navigating = false
     this._statusKey = 'loading'
     this._pickerBpm = DEFAULT_BPM
-    this._nextPickerId = 2
+    this._nextPickerId = 3
     this._swipe = createPageSwipe(() => Date.now())
     this._tapTimer = null
     this._feedbackTimer = null
@@ -64,7 +69,10 @@ export default {
   applyPreferences(values, failed) {
     if (this.bpm !== values.bpm) this.bpm = values.bpm
     this.syncPicker(this.bpm)
-    if (this.meter !== values.meter) this.meter = values.meter
+    if (this.meter !== values.meter) {
+      this.meter = values.meter
+      this.resetTap()
+    }
     if (this._theme !== values.theme) {
       this._theme = values.theme
       this.colors = getTheme(values.theme)
@@ -106,15 +114,15 @@ export default {
     if (this._pickerBpm === value) return
     const previous = this._pickerBpm
     this._pickerBpm = value
-    const before = [Math.floor((previous - MIN_BPM) / 10), previous % 10]
-    const after = [Math.floor((value - MIN_BPM) / 10), value % 10]
+    const before = digitColumns(previous)
+    const after = digitColumns(value)
     const next = this.pickerEntries.map((entry, column) => {
-      const options = column === 0 ? TENS_OPTIONS : value === MAX_BPM ? ZERO_OPTION : ONES_OPTIONS
-      // Never feed a native selection back into its own snapping wheel. Only
-      // replace the other column when its value/range changes, or for Tap Tempo.
-      if (entry.options.length === options.length &&
-          (column === originColumn || before[column] === after[column])) return entry
-      return { id: this._nextPickerId++, options, selected: after[column] }
+      const { options, selected } = after[column]
+      // Keep the emitting wheel stable; replace dependent columns only when
+      // their range or selected digit changes. selected is an initial prop.
+      if (entry.options.join(',') === options.join(',') &&
+          (column === originColumn || before[column].selected === selected)) return entry
+      return { id: this._nextPickerId++, options, selected }
     })
     if (next.some((entry, column) => entry !== this.pickerEntries[column])) this.pickerEntries = next
   },
@@ -153,8 +161,18 @@ export default {
       value = Number(options[event.newSelected])
     } else return
     if (!options.includes(String(value))) return
-    const next = column === 0 ? Math.min(MAX_BPM, value + this.bpm % 10)
-      : Math.floor(this.bpm / 10) * 10 + value
+    const hundreds = Math.floor(this.bpm / 100)
+    const tens = Math.floor(this.bpm / 10) % 10
+    const ones = this.bpm % 10
+    let next
+    if (column === 0) {
+      // Preserve ones when changing hundreds: 199 -> 249, 123 -> 053.
+      const adjustedTens = value === 0 ? Math.max(5, tens)
+        : value === 2 ? Math.min(ones === 0 ? 5 : 4, tens) : tens
+      next = value * 100 + adjustedTens * 10 + ones
+    } else if (column === 1) {
+      next = Math.min(MAX_BPM, hundreds * 100 + value * 10 + ones)
+    } else next = hundreds * 100 + tens * 10 + value
     // Native echoes must not reset tap sampling or trigger automatic save retries.
     if (next === this.bpm) return
     this.setTempo(next, false, column)
@@ -184,7 +202,7 @@ export default {
     this._feedbackTimer = null
     this.tapLit = false
     if (this._taps) this._taps.reset()
-    this.tapHint = this.labels.tapHint
+    this.tapHint = this.meter === '6/8' ? this.labels.tapDotted : this.labels.tapQuarter
   },
   goBack(fromGesture) {
     if (!this._visible || this._navigating || (fromGesture !== true && !this._swipe.canClick())) return
@@ -217,12 +235,9 @@ export default {
 /* Keep the native wheel and its label in normal flow, without a clipped viewport.
    Equal font metrics avoid resizing the selected text over the candidate rows. */
 .tempo-value { width: 280px; flex-shrink: 0; flex-direction: column; align-items: center; }
-.wheel-headings { width: 252px; height: 20px; flex-shrink: 0; flex-direction: row; }
-.wheel-heading { width: 126px; height: 20px; color: #a8b5c5; font-size: 14px; text-align: center; }
 .wheels { width: 252px; flex-shrink: 0; flex-direction: row; align-items: center; }
-.tempo-picker { width: 126px; flex-shrink: 0; color: #a8b5c5; font-size: 28px; selected-font-size: 28px; }
+.tempo-picker { width: 84px; flex-shrink: 0; color: #a8b5c5; font-size: 28px; selected-font-size: 28px; }
 .unit { width: 280px; height: 24px; flex-shrink: 0; color: #a8b5c5; font-size: 16px; text-align: center; }
 .tap { width: 192px; height: 192px; flex-shrink: 0; border-radius: 96px; color: #222222; font-size: 26px; }
-.tap-guide { width: 304px; height: 22px; color: #a8b5c5; font-size: 16px; text-align: center; }
 .hint { width: 304px; height: 24px; color: #a8b5c5; font-size: 16px; text-align: center; }
 </style>
