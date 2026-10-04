@@ -1,0 +1,11 @@
+<script>
+const storage = require('@system.storage')
+const { createPreferenceStore } = require('./common/preferences')
+
+export default {
+  getPreferences() {
+    if (!this._preferences) this._preferences = createPreferenceStore(storage)
+    return this._preferences
+  }
+}
+</script>

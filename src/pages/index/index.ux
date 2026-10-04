@@ -1,0 +1,292 @@
+<template>
+  <div class="page" style="background-color: {{ colors.background }}" ontouchstart="onPageTouchStart" ontouchmove="onPageTouchMove" ontouchend="onPageTouchEnd">
+    <div class="loading" if="{{ !ready }}"><text class="hint">{{ labels.loading }}</text></div>
+    <div class="welcome" if="{{ ready && showWelcome }}">
+      <text class="welcome-title" style="color: {{ colors.accent }}">{{ labels.welcome }}</text>
+      <text class="welcome-subtitle">{{ labels.welcomeSubtitle }}</text>
+      <text class="guide">{{ labels.swipeLeft }}</text>
+      <text class="guide">{{ labels.swipeUp }}</text>
+      <text class="guide">{{ labels.swipeDown }}</text>
+      <text class="guide">{{ labels.swipeRight }}</text>
+      <text class="guide-detail">{{ labels.quickGuide }}</text>
+      <input class="welcome-button" style="background-color: {{ colors.accent }}" type="button" value="{{ labels.letsPlay }}" onclick="finishWelcome" />
+    </div>
+    <div class="practice" if="{{ ready && !showWelcome }}">
+      <text class="meter" style="color: {{ colors.accent }}" onclick="openRhythm" onlongpress="showGuide">{{ meter }}</text>
+      <div class="tempo" onclick="openTempo">
+        <text class="bpm">{{ bpm }}</text>
+        <text class="unit">{{ meter === '6/8' ? labels.dottedUnit : labels.quarterUnit }}</text>
+      </div>
+      <input id="primary" class="{{ running ? 'primary primary-stop' : 'primary primary-play' }}" style="background-color: {{ lit ? (currentBeat === 0 ? colors.downbeat : colors.pulse) : colors.accent }}" type="button" value="" disabled="{{ !ready }}" onclick="toggleRunning" />
+      <div class="beats">
+        <div for="{{ beatSlots }}" class="beat" style="margin-left: {{ meter === '6/8' && $item === 3 ? 18 : 5 }}px; background-color: {{ currentBeat === $item ? colors.accent : colors.surface }};"></div>
+      </div>
+      <div class="quick-row">
+        <div class="quick" onclick="toggleVibration">
+          <image class="quick-icon" src="{{ vibration ? '/common/icons/vibration-' + theme + '.png' : '/common/icons/vibration-off.png' }}"></image>
+        </div>
+        <div class="quick" onclick="toggleFlash">
+          <image class="quick-icon" src="{{ flash ? '/common/icons/flash-' + theme + '.png' : '/common/icons/flash-off.png' }}"></image>
+        </div>
+      </div>
+      <text class="hint" onclick="retrySave">{{ status }}</text>
+    </div>
+  </div>
+</template>
+
+<script>
+const vibrator = require('@system.vibrator')
+const brightness = require('@system.brightness')
+const configuration = require('@system.configuration')
+const router = require('@system.router')
+const app = require('@system.app')
+const timing = require('../../common/metronome')
+const { getStrings } = require('../../common/strings')
+const { getTheme } = require('../../common/themes')
+const { getMeter, defaultPattern } = require('../../common/rhythm')
+const { createPageSwipe } = require('../../common/page-swipe')
+
+export default {
+  private: {
+    bpm: timing.DEFAULT_BPM, meter: '4/4', beatSlots: [0, 1, 2, 3], currentBeat: -1,
+    ready: false, running: false, showWelcome: false,
+    vibration: true, flash: true, lit: false, theme: 'mint', colors: getTheme(),
+    labels: getStrings('en'), status: 'Loading preferences...'
+  },
+  onInit() {
+    this._visible = false
+    this._navigating = false
+    this._flashTimer = null
+    this._noticeTimer = null
+    this._noticeKey = null
+    this._keepScreenRequested = false
+    this._statusKey = 'loading'
+    this._pattern = defaultPattern('4/4')
+    this._swipe = createPageSwipe(() => Date.now())
+    this._metronome = timing.createMetronome((index, duration) => this.beat(index, duration))
+    this._store = this.$app.$def.getPreferences()
+    this.refreshLanguage()
+    this._unsubscribe = this._store.subscribe((values, failed) => {
+      if (!this._navigating || this.ready) this.applyPreferences(values, failed)
+    })
+  },
+  applyPreferences(values, failed) {
+    const previous = this._preferences
+    if (this.bpm !== values.bpm) this.bpm = this._metronome.setBpm(values.bpm)
+    if (!previous || previous.meter !== values.meter) {
+      if (this.running) this.stop()
+      this.meter = this._metronome.setMeter(values.meter)
+      this.beatSlots = Array.from({ length: getMeter(this.meter).slots }, (_, index) => index)
+    }
+    this._pattern = values.patterns[this.meter].slice()
+    // Do not undo a local hardware-failure disable on an unrelated preference edit.
+    if (!previous || previous.vibration !== values.vibration) this.vibration = values.vibration
+    if (!previous || previous.flash !== values.flash) {
+      this.flash = values.flash
+      if (!this.flash) this.clearFlash()
+    }
+    if (this.theme !== values.theme) {
+      this.theme = values.theme
+      this.colors = getTheme(values.theme)
+    }
+    if (!previous || previous.onboardingDone !== values.onboardingDone) this.showWelcome = !values.onboardingDone
+    this._preferences = values
+    this.syncSaveStatus()
+    if (!this.ready) this.ready = true
+  },
+  syncSaveStatus() {
+    const status = this._store.getStatus()
+    if (status === 'saveError' || status === 'loadError') this.setStatus(status)
+    else if (!this.ready || ['loading', 'saving', 'saveError', 'loadError'].indexOf(this._statusKey) >= 0) {
+      this.setStatus(status === 'saving' ? 'saving' : this.running ? 'running' : 'ready')
+    }
+  },
+  onShow() {
+    this._visible = true
+    this._navigating = false
+    this._swipe.cancel()
+    this._store.load((values, failed) => {
+      if (!this._visible || this._navigating) return
+      if (!this.ready) this.applyPreferences(values, failed)
+      this.currentBeat = -1
+      this.showWelcome = !values.onboardingDone
+      this.refreshLanguage()
+      this.setStatus('ready')
+      this.syncSaveStatus()
+    })
+  },
+  controlsReady() { return this.ready && this._visible && !this.showWelcome && !this._navigating },
+  finishWelcome() {
+    if (!this.ready || !this._visible || this._navigating || !this.showWelcome || !this._swipe.canClick()) return
+    this.showWelcome = false
+    this.setStatus('ready')
+    this.persist({ onboardingDone: true })
+  },
+  showGuide() {
+    if (!this.controlsReady() || !this._swipe.canClick()) return
+    this.stop()
+    this.showWelcome = true
+  },
+  refreshLanguage() {
+    let language = 'en'
+    try { language = configuration.getLocale().language } catch (error) {}
+    this.labels = getStrings(language)
+    this.status = this.labels[this._noticeKey || this._statusKey || 'ready']
+  },
+  onConfigurationChanged(event) { if (event && event.type === 'locale') this.refreshLanguage() },
+  setStatus(key) {
+    this._statusKey = key
+    if (key.indexOf('Error') >= 0) this.clearNotice()
+    this.status = this.labels[this._noticeKey || key]
+  },
+  clearNotice() {
+    if (this._noticeTimer !== null) clearTimeout(this._noticeTimer)
+    this._noticeTimer = null
+    this._noticeKey = null
+  },
+  notify(key) {
+    this.clearNotice()
+    this._noticeKey = key
+    this.status = this.labels[key]
+    this._noticeTimer = setTimeout(() => {
+      this._noticeTimer = null
+      this._noticeKey = null
+      this.status = this.labels[this._statusKey]
+    }, 1100)
+  },
+  persist(patch) { this._store.update(patch) },
+  retrySave() {
+    if (this.ready && this._visible && !this._navigating && this._swipe.canClick()) this._store.retry()
+  },
+  onPageTouchStart(event) { this._swipe.start(event) },
+  onPageTouchMove(event) { this._swipe.move(event) },
+  onPageTouchEnd(event) {
+    const direction = this._swipe.end(event)
+    if (direction) this.onPageSwipe({ direction })
+  },
+  onPageSwipe(event) {
+    if (!event || !this._visible) return
+    if (event.direction === 'right') this.exitApp(true)
+    else if (event.direction === 'left') this.openTempo(true)
+    else if (event.direction === 'up') this.openRhythm(true)
+    else if (event.direction === 'down') this.openAppearance(true)
+  },
+  exitApp(fromGesture) {
+    if (!this._visible || this._navigating || (fromGesture !== true && !this._swipe.canClick())) return
+    this._navigating = true
+    this.stop()
+    try { app.terminate() }
+    catch (error) { router.back() }
+  },
+  onBackPress() {
+    if (this._navigating) return true
+    this._navigating = true
+    this.stop()
+    return false
+  },
+  toggleRunning() {
+    if (!this.controlsReady() || !this._swipe.canClick()) return
+    if (this.running) { this.stop(); return }
+    this.running = true
+    this.setStatus('running')
+    this._keepScreenRequested = true
+    try {
+      brightness.setKeepScreenOn({
+        keepScreenOn: true,
+        fail: () => { if (this.running) this.setStatus('screenError') }
+      })
+    } catch (error) { this.setStatus('screenError') }
+    this._metronome.start()
+  },
+  toggleVibration() {
+    if (!this.controlsReady() || !this._swipe.canClick()) return
+    this.vibration = !this.vibration
+    this.notify(this.vibration ? 'vibrationOn' : 'vibrationOff')
+    this.persist({ vibration: this.vibration })
+  },
+  toggleFlash() {
+    if (!this.controlsReady() || !this._swipe.canClick()) return
+    this.flash = !this.flash
+    if (!this.flash) this.clearFlash()
+    this.notify(this.flash ? 'flashOn' : 'flashOff')
+    this.persist({ flash: this.flash })
+  },
+  beat(index, duration) {
+    this.currentBeat = index
+    this.clearFlash()
+    if (this.flash) {
+      this.lit = true
+      // Even at 250 dotted-quarter BPM, the flash ends before the next eighth.
+      this._flashTimer = setTimeout(() => {
+        this.lit = false
+        this._flashTimer = null
+      }, Math.min(100, Math.floor(duration * 0.4)))
+    }
+    const mode = this._pattern[index]
+    if (this.vibration && mode !== 'off') {
+      // Preset durations, not amplitude. An already-started pulse cannot be cut short.
+      try { vibrator.vibrate({ mode }) }
+      catch (error) { this.vibration = false; this.setStatus('vibrationError') }
+    }
+  },
+  clearFlash() {
+    if (this._flashTimer !== null) { clearTimeout(this._flashTimer); this._flashTimer = null }
+    this.lit = false
+  },
+  stop() {
+    this.running = false
+    if (this._metronome) this._metronome.stop()
+    this.currentBeat = -1
+    this.clearFlash()
+    this.clearNotice()
+    if (this._keepScreenRequested) {
+      this._keepScreenRequested = false
+      try { brightness.setKeepScreenOn({ keepScreenOn: false }) }
+      catch (error) { console.warn('Could not release keep-screen-on request') }
+    }
+    this.setStatus('stopped')
+  },
+  openPage(uri, fromGesture) {
+    if (!this.controlsReady() || (fromGesture !== true && !this._swipe.canClick())) return
+    this.stop()
+    this._navigating = true
+    router.push({ uri })
+  },
+  openTempo(fromGesture) { this.openPage('/pages/tempo', fromGesture) },
+  openRhythm(fromGesture) { this.openPage('/pages/rhythm', fromGesture) },
+  openAppearance(fromGesture) { this.openPage('/pages/appearance', fromGesture) },
+  onHide() { this._visible = false; this._swipe.cancel(); this.stop() },
+  onDestroy() {
+    this._visible = false
+    this._unsubscribe()
+    this.ready = false
+    this._swipe.cancel()
+    this.stop()
+  }
+}
+</script>
+
+<style>
+.page { width: 100%; height: 100%; }
+.loading { width: 100%; height: 100%; align-items: center; justify-content: center; }
+.practice { width: 100%; height: 100%; padding: 12px 16px; flex-direction: column; align-items: center; justify-content: space-between; }
+.meter { width: 160px; height: 40px; font-size: 26px; text-align: center; }
+.tempo { width: 280px; height: 82px; flex-direction: column; align-items: center; justify-content: center; }
+.bpm { height: 60px; color: #f1f5f9; font-size: 52px; }
+.unit { width: 280px; height: 22px; color: #a8b5c5; font-size: 16px; text-align: center; }
+.primary { width: 192px; height: 192px; flex-shrink: 0; border-radius: 96px; color: #222222; background-size: 64px 64px; background-position: center center; background-repeat: no-repeat; }
+.primary-play { background-image: url('/common/icons/play-dark.png'); }
+.primary-stop { background-image: url('/common/icons/stop-dark.png'); }
+.beats { width: 240px; height: 24px; flex-direction: row; align-items: center; justify-content: center; }
+.beat { width: 14px; height: 14px; border-radius: 7px; margin-right: 5px; }
+.quick-row { width: 240px; height: 48px; flex-direction: row; align-items: center; justify-content: space-between; }
+.quick { width: 64px; height: 48px; align-items: center; justify-content: center; }
+.quick-icon { width: 32px; height: 32px; }
+.hint { width: 304px; height: 22px; color: #a8b5c5; font-size: 16px; text-align: center; }
+.welcome { width: 100%; height: 100%; padding: 22px; flex-direction: column; align-items: center; justify-content: space-around; }
+.welcome-title { width: 292px; height: 38px; font-size: 28px; text-align: center; }
+.welcome-subtitle { width: 292px; height: 24px; color: #f1f5f9; font-size: 20px; text-align: center; }
+.guide { width: 292px; height: 32px; color: #f1f5f9; font-size: 20px; text-align: center; }
+.guide-detail { width: 292px; height: 44px; color: #a8b5c5; font-size: 18px; text-align: center; }
+.welcome-button { width: 260px; height: 48px; border-radius: 24px; color: #222222; font-size: 24px; }
+</style>

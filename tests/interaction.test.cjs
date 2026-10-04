@@ -1,0 +1,251 @@
+const test = require('node:test')
+const assert = require('node:assert/strict')
+const { pageHarness } = require('./helpers.cjs')
+
+function openTempo(harness) {
+  harness.page.openTempo()
+  harness.page.onHide()
+  return harness.createPage('tempo')
+}
+
+function returnHome(harness, tempo) {
+  tempo.goBack()
+  tempo.onHide()
+  harness.page.onShow()
+}
+
+test('left swipe opens the tempo page after stopping playback and screen-on', () => {
+  const { page, clock, calls } = pageHarness()
+  page.toggleRunning()
+  page.onPageSwipe({ direction: 'left' })
+  page.onPageSwipe({ direction: 'left' })
+  assert.deepEqual(calls.routes, ['/pages/tempo'])
+  assert.equal(page.running, false)
+  assert.equal(clock.pending(), 0)
+  assert.deepEqual(calls.keepScreenOn, [true, false])
+})
+
+test('home vertical swipes open focused pages; tempo vertical swipes do nothing', () => {
+  for (const [direction, route] of [['up', '/pages/rhythm'], ['down', '/pages/appearance']]) {
+    const h = pageHarness()
+    h.page.toggleRunning()
+    h.page.onPageSwipe({ direction })
+    assert.equal(h.page.bpm, 120)
+    assert.equal(h.page.running, false)
+    assert.equal(h.clock.pending(), 0)
+    assert.deepEqual(h.calls.routes, [route])
+  }
+  const h = pageHarness()
+  const tempo = openTempo(h)
+  for (const direction of ['up', 'down']) tempo.onPageSwipe({ direction })
+  assert.equal(tempo.bpm, 120)
+  assert.deepEqual(h.calls.routes, ['/pages/tempo'])
+})
+
+test('tempo changes clamp to limits without redundant writes', () => {
+  const h = pageHarness({ preferences: { bpm: 249 } })
+  const tempo = openTempo(h)
+  tempo.setTempo(255)
+  assert.equal(tempo.bpm, 250)
+  tempo.setTempo(255)
+  assert.equal(h.calls.writes.length, 1)
+  tempo.setTempo(45)
+  assert.equal(tempo.bpm, 50)
+  assert.equal(h.stored().bpm, 50)
+})
+
+test('native slider changes persist exact BPM', () => {
+  const h = pageHarness()
+  const tempo = openTempo(h)
+  tempo.onSliderChange({ progress: 121, isFromUser: true })
+  assert.equal(tempo.bpm, 121)
+  tempo.onSliderChange({ progress: 120, isFromUser: true })
+  assert.equal(tempo.bpm, 120)
+  tempo.onSliderChange({ progress: 137, isFromUser: true })
+  assert.equal(tempo.bpm, 137)
+  assert.equal(h.stored().bpm, 137)
+  for (const event of [{ progress: 100, isFromUser: false }, { progress: NaN, isFromUser: true }, { progress: 80 }]) {
+    tempo.onSliderChange(event)
+  }
+  assert.equal(tempo.bpm, 137)
+  assert.equal(h.calls.exits, 0)
+})
+
+test('tempo changes preserve output and rhythm; returning home never auto-starts', () => {
+  const h = pageHarness({ preferences: { bpm: 155, vibration: false, flash: false, meter: '3/4' } })
+  const tempo = openTempo(h)
+  assert.equal(typeof tempo.resetTempo, 'undefined')
+  tempo.setTempo(157)
+  assert.equal(h.stored().vibration, false)
+  assert.equal(h.stored().flash, false)
+  assert.equal(h.stored().meter, '3/4')
+  returnHome(h, tempo)
+  assert.equal(h.page.bpm, 157)
+  assert.equal(h.page.running, false)
+})
+
+test('Tap Tempo waits for four taps, estimates 150 BPM, and never starts playback', () => {
+  const h = pageHarness()
+  const tempo = openTempo(h)
+  tempo.tapTempo()
+  for (let i = 0; i < 2; i++) { h.clock.advance(400); tempo.tapTempo() }
+  assert.equal(tempo.bpm, 120)
+  h.clock.advance(400)
+  tempo.tapTempo()
+  assert.equal(tempo.bpm, 150)
+  assert.equal(h.stored().bpm, 150)
+  assert.equal(tempo.tapHint, 'Tempo detected: 150')
+  assert.deepEqual(h.calls.vibrations, [])
+  h.clock.advance(2000)
+  assert.equal(tempo.tapHint, 'Tap 4 times')
+  assert.equal(h.clock.pending(), 0)
+  returnHome(h, tempo)
+  assert.equal(h.page.bpm, 150)
+  assert.equal(h.page.running, false)
+  h.page.toggleRunning()
+  h.clock.advance(400)
+  assert.equal(h.calls.vibrations.length, 2)
+})
+
+test('out-of-range taps leave the previous tempo unchanged', () => {
+  const h = pageHarness({ preferences: { bpm: 100 } })
+  const tempo = openTempo(h)
+  tempo.tapTempo()
+  for (let i = 0; i < 3; i++) { h.clock.advance(220); tempo.tapTempo() }
+  assert.equal(tempo.bpm, 100)
+  assert.equal(tempo.tapHint, 'Use 50–250 BPM')
+})
+
+test('manual adjustment clears an unfinished tap sequence', () => {
+  const h = pageHarness()
+  const tempo = openTempo(h)
+  tempo.tapTempo()
+  h.clock.advance(500)
+  tempo.tapTempo()
+  tempo.onSliderChange({ progress: 125, isFromUser: true })
+  assert.equal(h.clock.pending(), 0)
+  tempo.tapTempo()
+  assert.equal(tempo.tapHint, 'Taps: 1/4')
+})
+
+for (const method of ['goBack', 'onHide', 'onDestroy', 'onBackPress']) {
+  test(`tempo ${method} clears tap timers`, () => {
+    const h = pageHarness()
+    const tempo = openTempo(h)
+    tempo.tapTempo()
+    tempo[method]()
+    assert.equal(h.clock.pending(), 0)
+  })
+}
+
+test('home output icons apply during playback and save their state', () => {
+  const { page, clock, calls, stored } = pageHarness()
+  page.toggleRunning()
+  page.toggleFlash()
+  assert.equal(page.lit, false)
+  assert.equal(clock.pending(), 2) // beat timer + transient text
+  page.toggleVibration()
+  clock.advance(500)
+  assert.equal(calls.vibrations.length, 1)
+  assert.equal(page.running, true)
+  assert.equal(stored().flash, false)
+  assert.equal(stored().vibration, false)
+  page.toggleVibration()
+  page.toggleFlash()
+  clock.advance(500)
+  assert.equal(calls.vibrations.length, 2)
+})
+
+test('welcome can be reopened by holding the meter without losing preferences', () => {
+  const h = pageHarness({ preferences: { onboardingDone: false, bpm: 95 } })
+  assert.equal(h.page.showWelcome, true)
+  h.page.toggleRunning()
+  h.page.onPageSwipe({ direction: 'left' })
+  assert.deepEqual(h.calls.routes, [])
+  assert.equal(h.page.running, false)
+  h.page.finishWelcome()
+  assert.equal(h.stored().onboardingDone, true)
+  assert.equal(pageHarness({ preferences: h.stored() }).page.showWelcome, false)
+  h.page.toggleRunning()
+  h.page.showGuide()
+  assert.equal(h.clock.pending(), 0)
+  assert.equal(h.page.showWelcome, true)
+  assert.equal(h.page.bpm, 95)
+  assert.equal(h.page.running, false)
+})
+
+test('system locale is used on both pages despite legacy manual overrides', () => {
+  const h = pageHarness({ locale: 'zh-CN', preferences: { language: 'en' } })
+  assert.equal(h.page.labels.start, '开始')
+  const tempo = openTempo(h)
+  assert.equal(tempo.labels.tempo, '调整速度')
+  h.setLocale('en')
+  tempo.onConfigurationChanged({ type: 'locale' })
+  assert.equal(tempo.labels.tempo, 'TEMPO')
+  returnHome(h, tempo)
+  assert.equal(h.page.labels.start, 'Start')
+  h.setLocale('zh-CN')
+  h.page.onConfigurationChanged({ type: 'locale' })
+  assert.equal(h.page.labels.start, '开始')
+  assert.deepEqual(h.calls.writes, [])
+})
+
+test('screen-on is automatic during playback, regardless of removed legacy settings', () => {
+  const { page, calls, clock } = pageHarness({ preferences: { keepScreenOn: false } })
+  page.toggleRunning()
+  assert.deepEqual(calls.keepScreenOn, [true])
+  page.stop()
+  assert.deepEqual(calls.keepScreenOn, [true, false])
+  assert.equal(clock.pending(), 0)
+})
+
+test('editing while preferences are loading cannot overwrite the saved BPM', () => {
+  const h = pageHarness({ preferences: { bpm: 95 }, deferLoad: true })
+  h.page.onHide()
+  const tempo = h.createPage('tempo')
+  tempo.setTempo(121)
+  tempo.onSliderChange({ progress: 150, isFromUser: true })
+  tempo.tapTempo()
+  assert.equal(h.calls.writes.length, 0)
+  h.finishLoad()
+  assert.equal(tempo.bpm, 95)
+  assert.equal(tempo.ready, true)
+})
+
+test('a late load prepares hidden home state without activating controls or playback', () => {
+  const { page, finishLoad, calls, clock } = pageHarness({ preferences: { bpm: 95 }, deferLoad: true })
+  page.onHide()
+  finishLoad()
+  assert.equal(page.ready, true)
+  assert.equal(page.bpm, 95)
+  page.toggleRunning()
+  assert.equal(page.running, false)
+  assert.deepEqual(calls.vibrations, [])
+  assert.equal(clock.pending(), 0)
+  page.onShow()
+  assert.equal(page.bpm, 95)
+  assert.equal(page.running, false)
+})
+
+test('storage failures are visible on both pages', () => {
+  const h = pageHarness({ saveFails: true, locale: 'zh-CN' })
+  h.page.toggleFlash()
+  assert.equal(h.page.status, '保存失败，点此重试')
+  const tempo = openTempo(h)
+  tempo.setTempo(121)
+  assert.equal(tempo.warning, true)
+  assert.equal(tempo.status, '保存失败，点此重试')
+})
+
+test('rapid tempo changes persist the latest value after serialized callbacks', () => {
+  const h = pageHarness({ deferSaves: true })
+  const tempo = openTempo(h)
+  tempo.onSliderChange({ progress: 121, isFromUser: true })
+  tempo.onSliderChange({ progress: 122, isFromUser: true })
+  tempo.onSliderChange({ progress: 127, isFromUser: true })
+  assert.equal(h.pendingSaves(), 1)
+  h.finishSave()
+  assert.equal(h.pendingSaves(), 1)
+  h.finishSave()
+  assert.equal(h.stored().bpm, 127)
+})

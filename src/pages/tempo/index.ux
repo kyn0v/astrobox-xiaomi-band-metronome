@@ -1,0 +1,172 @@
+<template>
+  <div class="page" style="background-color: {{ colors.background }}" ontouchstart="onPageTouchStart" ontouchmove="onPageTouchMove" ontouchend="onPageTouchEnd">
+    <div class="loading" if="{{ !ready }}">
+      <text class="hint">{{ labels.loading }}</text>
+    </div>
+    <div class="content" if="{{ ready }}">
+      <text class="title">{{ labels.tempo }}</text>
+      <div class="tempo-value">
+        <text class="bpm">{{ bpm }}</text>
+        <text class="unit">{{ meter === '6/8' ? labels.dottedUnit : labels.quarterUnit }}</text>
+      </div>
+      <div class="slider-area">
+        <slider class="slider" style="selected-color: {{ colors.accent }}" min="50" max="250" step="1" value="{{ bpm }}" ontouchstart="onSliderTouchStart" onchange="onSliderChange"></slider>
+        <text class="range">{{ labels.sliderHint }}</text>
+      </div>
+      <input id="tap" class="tap" style="background-color: {{ tapLit ? colors.pulse : colors.accent }}" type="button" value="{{ labels.tap }}" disabled="{{ !ready }}" onclick="tapTempo" />
+      <text class="tap-guide">{{ meter === '6/8' ? labels.tapDotted : labels.tapQuarter }}</text>
+      <text class="hint" onclick="retrySave">{{ warning || status === labels.saving ? status : tapHint }}</text>
+    </div>
+  </div>
+</template>
+
+<script>
+const configuration = require('@system.configuration')
+const router = require('@system.router')
+const { MIN_BPM, MAX_BPM, DEFAULT_BPM } = require('../../common/metronome')
+const { createTapTempo, TAP_TIMEOUT_MS } = require('../../common/tap-tempo')
+const { getStrings } = require('../../common/strings')
+const { getTheme } = require('../../common/themes')
+const { createPageSwipe } = require('../../common/page-swipe')
+
+export default {
+  private: {
+    ready: false, bpm: DEFAULT_BPM, meter: '4/4', colors: getTheme(),
+    labels: getStrings('en'), tapHint: 'Tap 4 times', tapLit: false,
+    status: 'Loading preferences...', warning: false
+  },
+  onInit() {
+    this._visible = false
+    this._navigating = false
+    this._statusKey = 'loading'
+    this._swipe = createPageSwipe(() => Date.now())
+    this._tapTimer = null
+    this._feedbackTimer = null
+    this._taps = createTapTempo()
+    this._store = this.$app.$def.getPreferences()
+    this.refreshLanguage()
+    this._unsubscribe = this._store.subscribe((values, failed) => {
+      if (!this._navigating || this.ready) this.applyPreferences(values, failed)
+    })
+  },
+  applyPreferences(values, failed) {
+    if (this.bpm !== values.bpm) this.bpm = values.bpm
+    if (this.meter !== values.meter) this.meter = values.meter
+    if (this._theme !== values.theme) {
+      this._theme = values.theme
+      this.colors = getTheme(values.theme)
+    }
+    this.setStatus(this._store.getStatus())
+    if (!this.ready) this.ready = true
+  },
+  onShow() {
+    // Warm/retained pages already have current settings; do not remount controls.
+    this._visible = true
+    this._navigating = false
+    this._swipe.cancel()
+    this._store.load((values, failed) => {
+      if (!this._visible || this._navigating) return
+      if (!this.ready) this.applyPreferences(values, failed)
+      this.refreshLanguage()
+      this.setStatus(this._store.getStatus())
+    })
+  },
+  controlsReady() { return this.ready && this._visible && !this._navigating },
+  refreshLanguage() {
+    let language = 'en'
+    try { language = configuration.getLocale().language } catch (error) {}
+    this.labels = getStrings(language)
+    this.status = this.labels[this._statusKey]
+    this.resetTap()
+  },
+  onConfigurationChanged(event) { if (event && event.type === 'locale') this.refreshLanguage() },
+  setStatus(key) {
+    this._statusKey = key
+    this.warning = key.indexOf('Error') >= 0
+    this.status = this.labels[key]
+  },
+  save(patch) { this._store.update(patch) },
+  retrySave() {
+    if (this.controlsReady() && this._swipe.canClick()) this._store.retry()
+  },
+  setTempo(value, fromTap) {
+    if (!this.controlsReady() || typeof value !== 'number' || !isFinite(value)) return
+    if (!fromTap) this.resetTap()
+    const next = Math.max(MIN_BPM, Math.min(MAX_BPM, Math.round(value)))
+    if (next === this.bpm) { this._store.retry(); return }
+    this.bpm = next
+    this.save({ bpm: next })
+  },
+  onSliderTouchStart() { this._swipe.exclude() },
+  onPageTouchStart(event) { this._swipe.start(event) },
+  onPageTouchMove(event) { this._swipe.move(event) },
+  onPageTouchEnd(event) {
+    const direction = this._swipe.end(event)
+    if (direction) this.onPageSwipe({ direction })
+  },
+  onSliderChange(event) { if (event && event.isFromUser === true) this.setTempo(event.progress) },
+  onPageSwipe(event) { if (event && event.direction === 'right') this.goBack(true) },
+  tapTempo() {
+    if (!this.controlsReady() || !this._swipe.canClick()) return
+    const result = this._taps.tap(Date.now())
+    if (this._tapTimer !== null) clearTimeout(this._tapTimer)
+    this._tapTimer = setTimeout(() => this.resetTap(), TAP_TIMEOUT_MS)
+    if (this._feedbackTimer !== null) clearTimeout(this._feedbackTimer)
+    this.tapLit = true
+    this._feedbackTimer = setTimeout(() => {
+      this.tapLit = false
+      this._feedbackTimer = null
+    }, 100)
+    if (result.outOfRange) this.tapHint = this.labels.tapRange
+    else if (result.bpm !== null) {
+      this.tapHint = this.labels.tapReady + ': ' + result.bpm
+      this.setTempo(result.bpm, true)
+    } else this.tapHint = this.labels.tapping + ': ' + result.count + '/4'
+  },
+  resetTap() {
+    if (this._tapTimer !== null && this._tapTimer !== undefined) clearTimeout(this._tapTimer)
+    if (this._feedbackTimer !== null && this._feedbackTimer !== undefined) clearTimeout(this._feedbackTimer)
+    this._tapTimer = null
+    this._feedbackTimer = null
+    this.tapLit = false
+    if (this._taps) this._taps.reset()
+    this.tapHint = this.labels.tapHint
+  },
+  goBack(fromGesture) {
+    if (!this._visible || this._navigating || (fromGesture !== true && !this._swipe.canClick())) return
+    this._navigating = true
+    this.resetTap()
+    router.back()
+  },
+  onBackPress() {
+    if (this._navigating) return true
+    this._navigating = true
+    this.resetTap()
+    return false
+  },
+  onHide() { this._visible = false; this._swipe.cancel(); this.resetTap() },
+  onDestroy() {
+    this._visible = false
+    this._unsubscribe()
+    this.ready = false
+    this._swipe.cancel()
+    this.resetTap()
+  }
+}
+</script>
+
+<style>
+.page { width: 100%; height: 100%; }
+.loading { width: 100%; height: 100%; align-items: center; justify-content: center; }
+.content { width: 100%; height: 100%; padding: 12px 16px; flex-direction: column; align-items: center; justify-content: space-between; }
+.title { width: 280px; height: 28px; color: #f1f5f9; font-size: 24px; text-align: center; }
+.tempo-value { width: 280px; height: 82px; flex-direction: column; align-items: center; justify-content: center; }
+.bpm { height: 60px; color: #f1f5f9; font-size: 52px; }
+.unit { width: 280px; height: 22px; color: #a8b5c5; font-size: 16px; text-align: center; }
+.slider-area { width: 280px; height: 64px; flex-direction: column; align-items: center; }
+.slider { width: 280px; height: 44px; flex-shrink: 0; padding-left: 8px; padding-right: 8px; color: #243041; block-color: #f1f5f9; }
+.range { width: 280px; height: 20px; color: #a8b5c5; font-size: 16px; text-align: center; }
+.tap { width: 192px; height: 192px; flex-shrink: 0; border-radius: 96px; color: #222222; font-size: 26px; }
+.tap-guide { width: 304px; height: 22px; color: #a8b5c5; font-size: 16px; text-align: center; }
+.hint { width: 304px; height: 24px; color: #a8b5c5; font-size: 16px; text-align: center; }
+</style>

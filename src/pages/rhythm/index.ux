@@ -1,0 +1,151 @@
+<template>
+  <div class="page" style="background-color: {{ colors.background }}" ontouchstart="onPageTouchStart" ontouchmove="onPageTouchMove" ontouchend="onPageTouchEnd">
+    <div class="loading" if="{{ !ready }}"><text class="hint">{{ labels.loading }}</text></div>
+    <div class="content" if="{{ ready }}">
+      <text class="title">{{ labels.rhythm }}</text>
+      <div class="meter-row">
+        <input class="arrow" style="color: {{ colors.accent }}" type="button" value="‹" onclick="previousMeter" />
+        <text class="meter" style="color: {{ colors.accent }}">{{ meter }}</text>
+        <input class="arrow" style="color: {{ colors.accent }}" type="button" value="›" onclick="nextMeter" />
+      </div>
+      <text class="grouping">{{ meter === '6/8' ? labels.compoundGrouping : labels.simpleGrouping }}</text>
+      <div class="grid">
+        <div class="row">
+          <div for="{{ rowTop }}" tid="index" class="cell" style="width: {{ cellWidth }}px; background-color: {{ $item.mode === 'long' ? colors.accent : colors.surface }};" onclick="cycleSlot($item.index)">
+            <text class="number" style="color: {{ $item.mode === 'long' ? colors.onAccent : colors.text }}">{{ $item.index + 1 }}</text>
+            <text class="mode" style="color: {{ $item.mode === 'long' ? colors.onAccent : $item.mode === 'off' ? colors.muted : colors.accent }}">{{ labels[$item.mode] }}</text>
+          </div>
+        </div>
+        <div class="row" if="{{ rowBottom.length > 0 }}">
+          <div for="{{ rowBottom }}" tid="index" class="cell" style="width: {{ cellWidth }}px; background-color: {{ $item.mode === 'long' ? colors.accent : colors.surface }};" onclick="cycleSlot($item.index)">
+            <text class="number" style="color: {{ $item.mode === 'long' ? colors.onAccent : colors.text }}">{{ $item.index + 1 }}</text>
+            <text class="mode" style="color: {{ $item.mode === 'long' ? colors.onAccent : $item.mode === 'off' ? colors.muted : colors.accent }}">{{ labels[$item.mode] }}</text>
+          </div>
+        </div>
+      </div>
+      <text class="hint">{{ labels.cycleHint }}</text>
+      <text class="hint">{{ labels.vibrationNote }}</text>
+      <text class="status" onclick="retrySave">{{ status }}</text>
+    </div>
+  </div>
+</template>
+
+<script>
+const configuration = require('@system.configuration')
+const router = require('@system.router')
+const { METERS, getMeter, normalizePatterns, nextMode } = require('../../common/rhythm')
+const { getStrings } = require('../../common/strings')
+const { getTheme } = require('../../common/themes')
+const { createPageSwipe } = require('../../common/page-swipe')
+
+export default {
+  private: {
+    ready: false, meter: '4/4', rowTop: [], rowBottom: [], cellWidth: 128,
+    colors: getTheme(), labels: getStrings('en'), status: 'Loading preferences...'
+  },
+  onInit() {
+    this._visible = false
+    this._navigating = false
+    this._statusKey = 'loading'
+    this._patterns = normalizePatterns()
+    this._swipe = createPageSwipe(() => Date.now())
+    this._store = this.$app.$def.getPreferences()
+    this.refreshLanguage()
+    this._unsubscribe = this._store.subscribe((values, failed) => {
+      if (!this._navigating || this.ready) this.applyPreferences(values, failed)
+    })
+  },
+  applyPreferences(values, failed) {
+    this.meter = values.meter
+    this._patterns = values.patterns
+    if (this._theme !== values.theme) {
+      this._theme = values.theme
+      this.colors = getTheme(values.theme)
+    }
+    this.refreshGrid()
+    this.setStatus(this._store.getStatus())
+    if (!this.ready) this.ready = true
+  },
+  onShow() {
+    this._visible = true
+    this._navigating = false
+    this._swipe.cancel()
+    this._store.load((values, failed) => {
+      if (!this._visible || this._navigating) return
+      if (!this.ready) this.applyPreferences(values, failed)
+      this.refreshLanguage()
+      this.setStatus(this._store.getStatus())
+    })
+  },
+  refreshGrid() {
+    const pattern = this._patterns[this.meter]
+    const previous = this.rowTop.concat(this.rowBottom)
+    const columns = pattern.length === 2 || pattern.length === 4 ? 2 : 3
+    // Keep unchanged cells and rows stable, including on save-status publications.
+    const cells = pattern.map((mode, index) =>
+      previous[index] && previous[index].mode === mode ? previous[index] : { index, mode })
+    const top = cells.slice(0, columns)
+    const bottom = cells.slice(columns)
+    const width = columns === 2 ? 128 : 84
+    if (this.cellWidth !== width) this.cellWidth = width
+    if (top.length !== this.rowTop.length || top.some((cell, i) => cell !== this.rowTop[i])) this.rowTop = top
+    if (bottom.length !== this.rowBottom.length || bottom.some((cell, i) => cell !== this.rowBottom[i])) this.rowBottom = bottom
+  },
+  controlsReady() { return this.ready && this._visible && !this._navigating && this._swipe.canClick() },
+  refreshLanguage() {
+    let language = 'en'
+    try { language = configuration.getLocale().language } catch (error) {}
+    this.labels = getStrings(language)
+    this.status = this.labels[this._statusKey]
+  },
+  onConfigurationChanged(event) { if (event && event.type === 'locale') this.refreshLanguage() },
+  setStatus(key) { this._statusKey = key; this.status = this.labels[key] },
+  save(patch) { this._store.update(patch) },
+  retrySave() { if (this.controlsReady()) this._store.retry() },
+  changeMeter(direction) {
+    if (!this.controlsReady()) return
+    const index = (METERS.indexOf(this.meter) + direction + METERS.length) % METERS.length
+    this.save({ meter: METERS[index] })
+  },
+  previousMeter() { this.changeMeter(-1) },
+  nextMeter() { this.changeMeter(1) },
+  cycleSlot(index) {
+    if (!this.controlsReady() || !Number.isInteger(index) || index < 0 || index >= getMeter(this.meter).slots) return
+    this._patterns[this.meter][index] = nextMode(this._patterns[this.meter][index])
+    this.save({ patterns: this._patterns })
+  },
+  onPageTouchStart(event) { this._swipe.start(event) },
+  onPageTouchMove(event) { this._swipe.move(event) },
+  onPageTouchEnd(event) { if (this._swipe.end(event) === 'right') this.goBack(true) },
+  goBack(fromGesture) {
+    if (!this._visible || this._navigating || (fromGesture !== true && !this._swipe.canClick())) return
+    this._navigating = true
+    router.back()
+  },
+  onBackPress() {
+    if (this._navigating) return true
+    this._navigating = true
+    return false
+  },
+  onHide() { this._visible = false; this._swipe.cancel() },
+  onDestroy() { this._visible = false; this._unsubscribe(); this.ready = false; this._swipe.cancel() }
+}
+</script>
+
+<style>
+.page { width: 100%; height: 100%; }
+.loading { width: 100%; height: 100%; align-items: center; justify-content: center; }
+.content { width: 100%; height: 100%; padding: 16px; flex-direction: column; align-items: center; justify-content: space-around; }
+.title { width: 280px; height: 28px; color: #f1f5f9; font-size: 24px; text-align: center; }
+.meter-row { width: 280px; height: 48px; flex-direction: row; align-items: center; justify-content: space-between; }
+.arrow { width: 52px; height: 48px; border-radius: 14px; background-color: #243041; font-size: 32px; }
+.meter { width: 144px; height: 48px; font-size: 36px; text-align: center; }
+.grouping { width: 304px; height: 24px; color: #a8b5c5; font-size: 16px; text-align: center; }
+.grid { width: 280px; height: 196px; flex-direction: column; justify-content: center; }
+.row { width: 280px; height: 98px; flex-direction: row; align-items: center; justify-content: space-between; }
+.cell { height: 84px; border-radius: 16px; flex-direction: column; align-items: center; justify-content: center; }
+.number { height: 34px; font-size: 26px; }
+.mode { height: 28px; font-size: 20px; }
+.hint { width: 304px; height: 24px; color: #a8b5c5; font-size: 16px; text-align: center; }
+.status { width: 304px; height: 22px; color: #a8b5c5; font-size: 16px; text-align: center; }
+</style>

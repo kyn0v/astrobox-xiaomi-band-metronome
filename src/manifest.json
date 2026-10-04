@@ -1,0 +1,42 @@
+{
+  "package": "org.bandmetronome.app",
+  "name": "Metronome",
+  "icon": "/common/icon.png",
+  "versionName": "0.5.5",
+  "versionCode": 13,
+  "minAPILevel": 1,
+  "deviceTypeList": ["watch"],
+  "features": [
+    { "name": "system.vibrator" },
+    { "name": "system.brightness" },
+    { "name": "system.storage" },
+    { "name": "system.configuration" },
+    { "name": "system.router" },
+    { "name": "system.app" }
+  ],
+  "config": {
+    "designWidth": 336,
+    "logLevel": "log"
+  },
+  "router": {
+    "entry": "pages/index",
+    "pages": {
+      "pages/index": {
+        "component": "index",
+        "launchMode": "singleTask"
+      },
+      "pages/tempo": {
+        "component": "index"
+      },
+      "pages/appearance": {
+        "component": "index"
+      },
+      "pages/rhythm": {
+        "component": "index"
+      }
+    }
+  },
+  "display": {
+    "backgroundColor": "#10151e"
+  }
+}
