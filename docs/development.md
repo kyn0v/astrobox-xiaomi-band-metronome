@@ -35,6 +35,42 @@ For visual checks, open the project in Xiaomi AIoT-IDE with an appropriate Vela
 simulator. `npm start` exposes the vendor debug command; it does not install an
 emulator. Keep debugger services on a trusted local network.
 
+## Manual signed release build
+
+Use GitHub **Actions → Build signed RPK → Run workflow**, selecting `main`.
+The workflow only supports `workflow_dispatch`; it does not run on pushes or PRs,
+write branches, create GitHub Releases, or submit AstroBox PRs. Other branch
+selections are skipped. Each run builds its exact dispatched source commit.
+
+Repository Actions Secrets:
+
+- `RPK_SIGNING_PRIVATE_KEY`: PEM private key.
+- `RPK_SIGNING_CERTIFICATE`: PEM certificate.
+
+The certificate fingerprint is pinned in `.github/workflows/build-release.yml`.
+Do not replace the signing identity casually: it affects upgrade compatibility.
+GitHub does not provide a read-back UI for Secrets. The owner chose Secrets-only
+storage; there is no retained local private-key backup.
+
+Tests and dependency installation run before the secrets are materialized.
+The signing step writes restricted temporary files, checks the key/certificate
+match, then `aiot release` builds with that identity. Temporary signing files are
+removed in an always-run cleanup step. Only the release RPK, `SHA256SUMS`, and
+`release.json` are uploaded as an Actions artifact, retained for 14 days. Metadata
+records the source commit, package hash, and certificate fingerprint. Nothing is
+uploaded from the signing directory. Treat Actions artifacts in this public
+repository as distributable; keep all personal information out of them.
+
+The workflow has read-only repository permissions and pinned action revisions.
+Only trusted maintainers should be allowed to modify/run signing workflows:
+build tools execute code with access to the temporary key. These controls are
+not a sandbox for the existing third-party build dependencies.
+
+Download the artifact from the run page. Verify `SHA256SUMS` and test installation
+on the target band before using the RPK for the store submission. The new release
+signature may prevent replacing the older debug installation in place. Do not
+uninstall or erase preferences automatically.
+
 ## Code map and conventions
 
 Identifiers, filenames, comments, and technical documentation use English.
@@ -158,8 +194,8 @@ preparation-only. There is no automated publishing workflow or store approval.
 
 Before public binary distribution:
 
-- Choose a stable private signing certificate and keep it out of Git. Keep the
-  same signing identity for updates; verify migration from debug-signed builds.
+- Use the stable signing identity stored in Actions Secrets, never commit its
+  private key. Verify migration from debug-signed builds.
 - Complete device acceptance, and list only verified devices/firmware.
 - Prepare the AstroBox resource metadata and submit a PR referencing the exact
   resource commit. Preserve published branch history; do not force-rewrite it.

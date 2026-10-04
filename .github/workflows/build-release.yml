@@ -1,0 +1,88 @@
+name: Build signed RPK
+
+# Manual build only: no pull-request secrets, publishing, branch writes or store PRs.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: signed-rpk
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CERTIFICATE_SHA256: 316a3dac6bf0e69618e932fda3cc24d656acb5a95ba0aa1f47d6cfa74a22386f
+    steps:
+      - name: Check out the dispatched source commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+
+      - name: Install build dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Run tests before exposing signing secrets
+        run: npm test
+
+      - name: Write and validate signing material
+        env:
+          RPK_PRIVATE_KEY: ${{ secrets.RPK_SIGNING_PRIVATE_KEY }}
+          RPK_CERTIFICATE: ${{ secrets.RPK_SIGNING_CERTIFICATE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$RPK_PRIVATE_KEY"
+          test -n "$RPK_CERTIFICATE"
+          test ! -e sign/release/private.pem
+          test ! -e sign/release/certificate.pem
+          umask 077
+          mkdir -p sign/release
+          printf '%s\n' "$RPK_PRIVATE_KEY" > sign/release/private.pem
+          printf '%s\n' "$RPK_CERTIFICATE" > sign/release/certificate.pem
+          openssl pkey -in sign/release/private.pem -pubout > "$RUNNER_TEMP/key-public.pem"
+          openssl x509 -in sign/release/certificate.pem -pubkey -noout > "$RUNNER_TEMP/cert-public.pem"
+          cmp -s "$RUNNER_TEMP/key-public.pem" "$RUNNER_TEMP/cert-public.pem"
+          openssl x509 -in sign/release/certificate.pem -checkend 86400 -noout
+          actual=$(openssl x509 -in sign/release/certificate.pem -outform DER | sha256sum | cut -d ' ' -f 1)
+          test "$actual" = "$CERTIFICATE_SHA256"
+
+      - name: Build production-mode RPK
+        run: ./node_modules/.bin/aiot release --drop-console true
+
+      - name: Validate and prepare the downloadable files
+        run: |
+          python3 scripts/prepare-release-artifact.py \
+            --certificate sign/release/certificate.pem \
+            --certificate-sha256 "$CERTIFICATE_SHA256" \
+            --source-commit "$GITHUB_SHA" \
+            --output "$RUNNER_TEMP/metronome-release"
+
+      - name: Remove temporary signing material
+        if: always()
+        shell: bash
+        run: |
+          rm -f sign/release/private.pem sign/release/certificate.pem
+          rm -f "$RUNNER_TEMP/key-public.pem" "$RUNNER_TEMP/cert-public.pem"
+
+      - name: Upload RPK and verification metadata only
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: metronome-release-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/metronome-release/*.rpk
+            ${{ runner.temp }}/metronome-release/SHA256SUMS
+            ${{ runner.temp }}/metronome-release/release.json
+          if-no-files-found: error
+          retention-days: 14
