@@ -29,7 +29,7 @@
 
 ## 安装与限制
 
-当前版本为 **0.5.6**，处于开发测试阶段，尚未上架 AstroBox 或小米官方商店。可以自行构建 debug 包，通过兼容的 RPK 安装工具（如 AstroBox）安装。[`release/astrobox`](https://github.com/kyn0v/xiaomi-band-metronome/tree/release/astrobox) 分支目前仅用于准备发布资料。
+当前版本为 **0.5.7**，处于开发测试阶段，尚未上架 AstroBox 或小米官方商店。可以自行构建 debug 包，通过兼容的 RPK 安装工具（如 AstroBox）安装。[`release/astrobox`](https://github.com/kyn0v/xiaomi-band-metronome/tree/release/astrobox) 分支目前仅用于准备发布资料。
 
 - 目标设备为小米手环 9 Pro（336 × 480），其他机型尚未验证。
 - 仅前台运行。播放时保持亮屏，退出或离开首页后停止。
@@ -47,7 +47,7 @@ npm test
 npm run build
 ```
 
-输出文件：`dist/org.bandmetronome.app.debug.0.5.6.rpk`。
+输出文件：`dist/org.bandmetronome.app.debug.0.5.7.rpk`。
 
 当前构建使用工具链公共调试签名，不是正式发行包。签名、测试和发布流程见 [开发说明（英文）](docs/development.md)。
 

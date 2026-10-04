@@ -6,7 +6,7 @@
     <div class="content" if="{{ ready }}">
       <text class="title">{{ labels.tempo }}</text>
       <div class="tempo-value">
-        <picker id="tempo-picker" class="tempo-picker" type="text" range="{{ bpmOptions }}" selected="{{ bpm - minBpm }}" style="selected-color: {{ colors.accent }}; selected-background-color: {{ colors.surface }};" ontouchstart="onPickerTouchStart" onchange="onPickerChange"></picker>
+        <picker for="{{ pickerEntries }}" tid="id" class="tempo-picker" type="text" range="{{ bpmOptions }}" selected="{{ $item.selected }}" style="selected-color: {{ colors.accent }}; selected-background-color: {{ colors.surface }};" ontouchstart="onPickerTouchStart" onchange="onNativePickerChange($item.id)"></picker>
         <text class="unit">{{ meter === '6/8' ? labels.dottedUnit : labels.quarterUnit }}</text>
       </div>
       <input id="tap" class="tap" style="background-color: {{ tapLit ? colors.pulse : colors.accent }}" type="button" value="{{ labels.tap }}" disabled="{{ !ready }}" onclick="tapTempo" />
@@ -29,6 +29,7 @@ export default {
   private: {
     ready: false, bpm: DEFAULT_BPM, meter: '4/4', colors: getTheme(),
     minBpm: MIN_BPM,
+    pickerEntries: [{ id: 0, selected: DEFAULT_BPM - MIN_BPM }],
     bpmOptions: Array.from({ length: MAX_BPM - MIN_BPM + 1 }, (_, index) => String(MIN_BPM + index)),
     labels: getStrings('en'), tapHint: 'Tap 4 times', tapLit: false,
     status: 'Loading preferences...', warning: false
@@ -37,6 +38,7 @@ export default {
     this._visible = false
     this._navigating = false
     this._statusKey = 'loading'
+    this._pickerBpm = DEFAULT_BPM
     this._swipe = createPageSwipe(() => Date.now())
     this._tapTimer = null
     this._feedbackTimer = null
@@ -49,6 +51,7 @@ export default {
   },
   applyPreferences(values, failed) {
     if (this.bpm !== values.bpm) this.bpm = values.bpm
+    this.syncPicker(this.bpm)
     if (this.meter !== values.meter) this.meter = values.meter
     if (this._theme !== values.theme) {
       this._theme = values.theme
@@ -87,10 +90,19 @@ export default {
   retrySave() {
     if (this.controlsReady() && this._swipe.canClick()) this._store.retry()
   },
-  setTempo(value, fromTap) {
+  syncPicker(value) {
+    if (this._pickerBpm === value) return
+    this._pickerBpm = value
+    // selected is an initial value. Recreate only for external changes (e.g.
+    // Tap Tempo); a wheel-originated selection must not restart its own snap.
+    this.pickerEntries = [{ id: this.pickerEntries[0].id + 1, selected: value - MIN_BPM }]
+  },
+  setTempo(value, fromTap, fromPicker) {
     if (!this.controlsReady() || typeof value !== 'number' || !isFinite(value)) return
     if (!fromTap) this.resetTap()
     const next = Math.max(MIN_BPM, Math.min(MAX_BPM, Math.round(value)))
+    if (fromPicker) this._pickerBpm = next
+    else this.syncPicker(next)
     if (next === this.bpm) { this._store.retry(); return }
     this.bpm = next
     this.save({ bpm: next })
@@ -106,15 +118,27 @@ export default {
     const direction = this._swipe.end(event)
     if (direction) this.onPageSwipe({ direction })
   },
+  onNativePickerChange(generation, event) {
+    if (generation !== this.pickerEntries[0].id) return
+    this.onPickerChange(event)
+  },
   onPickerChange(event) {
-    if (!event || !this.controlsReady() || !Number.isInteger(event.newSelected) ||
-        event.newSelected < 0 || event.newSelected >= this.bpmOptions.length) return
-    const value = MIN_BPM + event.newSelected
-    if (event.newValue !== undefined && String(event.newValue) !== String(value)) return
-    // Initial/programmatic selection echoes must not write settings, retry failed
-    // saves, or reset a Tap Tempo sequence. The wheel itself renders scrolling.
+    if (!event || !this.controlsReady()) return
+    let value
+    // The official example reads newValue. Do not discard a valid selected value
+    // just because a runtime omits or differently encodes the supplementary index.
+    if (event.newValue !== undefined) {
+      if (typeof event.newValue !== 'number' &&
+          (typeof event.newValue !== 'string' || !/^\d+$/.test(event.newValue))) return
+      value = Number(event.newValue)
+    } else if (Number.isInteger(event.newSelected) && event.newSelected >= 0 &&
+               event.newSelected < this.bpmOptions.length) {
+      value = MIN_BPM + event.newSelected
+    } else return
+    if (!Number.isInteger(value) || value < MIN_BPM || value > MAX_BPM) return
+    // Native echoes must not reset tap sampling or trigger automatic save retries.
     if (value === this.bpm) return
-    this.setTempo(value)
+    this.setTempo(value, false, true)
   },
   onPageSwipe(event) { if (event && event.direction === 'right') this.goBack(true) },
   tapTempo() {
@@ -172,7 +196,7 @@ export default {
 .content { width: 100%; height: 100%; padding: 12px 16px; flex-direction: column; align-items: center; justify-content: space-between; }
 .title { width: 280px; height: 28px; color: #f1f5f9; font-size: 24px; text-align: center; }
 .tempo-value { width: 280px; height: 152px; flex-direction: column; align-items: center; justify-content: center; }
-.tempo-picker { width: 240px; height: 128px; flex-shrink: 0; color: #a8b5c5; font-size: 24px; selected-font-size: 40px; }
+.tempo-picker { width: 240px; flex-shrink: 0; color: #a8b5c5; font-size: 25px; selected-font-size: 30px; }
 .unit { width: 280px; height: 24px; color: #a8b5c5; font-size: 16px; text-align: center; }
 .tap { width: 192px; height: 192px; flex-shrink: 0; border-radius: 96px; color: #222222; font-size: 26px; }
 .tap-guide { width: 304px; height: 22px; color: #a8b5c5; font-size: 16px; text-align: center; }

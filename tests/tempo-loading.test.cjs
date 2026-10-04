@@ -23,7 +23,7 @@ test('tempo picker is conditionally created, not merely hidden with a default se
   const gate = template.indexOf('<div class="content" if="{{ ready }}">')
   assert.ok(gate > 0)
   assert.ok(template.indexOf('<picker ') > gate)
-  assert.match(template, /selected="\{\{ bpm - minBpm \}\}"/)
+  assert.match(template, /selected="\{\{ \$item.selected \}\}"/)
   assert.match(template, /class="loading" if="\{\{ !ready \}\}"/)
   // Back/swipe must remain attached to the always-present outer page.
   assert.ok(template.indexOf('ontouchend="onPageTouchEnd"') < gate)

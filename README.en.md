@@ -29,7 +29,7 @@ In 6/8, BPM counts dotted quarters. The six slots are grouped 3+3, so a bar last
 
 ## Installation and limitations
 
-The current version is **0.5.6**, in development/testing. It is not listed on AstroBox or Xiaomi's official store. You can build a debug RPK and install it with a compatible tool such as AstroBox. The [`release/astrobox`](https://github.com/kyn0v/xiaomi-band-metronome/tree/release/astrobox) branch currently contains release preparation materials only.
+The current version is **0.5.7**, in development/testing. It is not listed on AstroBox or Xiaomi's official store. You can build a debug RPK and install it with a compatible tool such as AstroBox. The [`release/astrobox`](https://github.com/kyn0v/xiaomi-band-metronome/tree/release/astrobox) branch currently contains release preparation materials only.
 
 - Target device: Xiaomi Smart Band 9 Pro (336 × 480). Other devices are unverified.
 - Foreground operation only. Playback keeps the screen on and stops when you exit or leave Home.
@@ -47,7 +47,7 @@ npm test
 npm run build
 ```
 
-Output: `dist/org.bandmetronome.app.debug.0.5.6.rpk`.
+Output: `dist/org.bandmetronome.app.debug.0.5.7.rpk`.
 
 The current build uses the toolkit's shared debug signing key and is not a production release. See the [development guide](docs/development.md) for signing, testing, and publishing details.
 

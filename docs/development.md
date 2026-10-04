@@ -19,8 +19,8 @@ npm test
 npm run build
 ```
 
-Current identity: `org.bandmetronome.app`, version **0.5.6**, version code **14**.
-Output: `dist/org.bandmetronome.app.debug.0.5.6.rpk`.
+Current identity: `org.bandmetronome.app`, version **0.5.7**, version code **15**.
+Output: `dist/org.bandmetronome.app.debug.0.5.7.rpk`.
 
 This is a debug **application package, not firmware**, signed with the toolkit's
 shared development key. There are no runtime npm dependencies in the app; npm
@@ -135,11 +135,19 @@ hardware brightness. Position dots continue when Flash is disabled.
 - Moved touches suppress synthetic clicks for 350 ms. Native picker touch streams
   are excluded from navigation.
 - Tempo uses the official `picker type="text"` with 201 string options (50–250).
-  `selected` is the zero-based index, `bpm - 50`; `change.newSelected` maps back to
-  BPM. The wheel renders scrolling itself and a confirmed selection saves the
-  value. Same-value programmatic echoes must not write, retry a failed save, or
-  reset tap sampling. There is no touch-coordinate estimate or custom slider.
-  Native wheel rendering, inertia and interaction still need Band 9 Pro testing. Native buttons still own hit-testing; no overlays.
+  Version 0.5.7 uses the official example's intrinsic height and 25/30 px fonts
+  instead of a fixed-height viewport with a much larger selected font. This targets
+  the reported between-row stopping; actual alignment still needs device testing.
+- `selected` is an initialization index (`bpm - 50`), not a feedback binding to BPM.
+  Wheel changes read the selected `newValue`, as in the official example; an index
+  is a fallback only when the value is absent. Saving a wheel selection never
+  writes `selected` back while the native wheel is snapping.
+- External tempo changes (including Tap Tempo) replace a single keyed picker
+  initialized at the target value. Old-instance callbacks are ignored. Returning
+  to the same page, changing theme, and save-status updates do not recreate it.
+  Same-value echoes do not write, retry failed saves, or reset tap sampling.
+  There is no custom slider, offset correction or timer-based snap workaround.
+  Native buttons still own hit-testing; no overlays.
 - System back and custom right-swipe share a navigation latch. The first system
   back cleans up and returns false; an already-pending navigation returns true.
   Reset the latch on `onShow`. Verify both event orders in tests and on-device.

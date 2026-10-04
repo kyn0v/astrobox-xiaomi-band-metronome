@@ -64,7 +64,7 @@ test('selection echoes do not automatically retry a failed save; explicit error 
 test('invalid, hidden, loading, and post-navigation picker events do not write preferences', () => {
   const h = tempoPage()
   for (const event of [null, {}, { newSelected: -1 }, { newSelected: 201 }, { newSelected: 2.5 },
-    { newSelected: '30' }, { newSelected: Infinity }, { newSelected: 100, newValue: '151' }]) {
+    { newSelected: '30' }, { newSelected: Infinity }, { newSelected: 100, newValue: 'invalid' }]) {
     h.tempo.onPickerChange(event)
   }
   h.tempo.onHide()
