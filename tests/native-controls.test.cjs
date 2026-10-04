@@ -67,7 +67,7 @@ test('four focused pages omit exit/back buttons, global vibration modes, and res
 test('tap target is circular and output icons have no background plate', () => {
   assert.match(tempoSource, /\.tap \{ width: 192px; height: 192px;.*border-radius: 96px/)
   assert.match(tempoTemplate, /id="tap".*type="button".*onclick="tapTempo"/)
-  assert.match(tempoTemplate, /range="\{\{ bpmOptions \}\}" selected="\{\{ \$item.selected \}\}"/)
+  assert.match(tempoTemplate, /range="\{\{ \$item.options \}\}" selected="\{\{ \$item.selected \}\}"/)
   const quickStyle = homeSource.match(/\.quick \{([^}]+)\}/)[1]
   assert.doesNotMatch(quickStyle, /background/)
   for (const tag of homeTemplate.matchAll(/<div class="quick"[^>]*>/g)) assert.doesNotMatch(tag[0], /background/)

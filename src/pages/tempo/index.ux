@@ -6,7 +6,13 @@
     <div class="content" if="{{ ready }}">
       <text class="title">{{ labels.tempo }}</text>
       <div class="tempo-value">
-        <picker for="{{ pickerEntries }}" tid="id" class="tempo-picker" type="text" range="{{ bpmOptions }}" selected="{{ $item.selected }}" style="selected-color: {{ colors.accent }}; selected-background-color: {{ colors.background }};" ontouchstart="onPickerTouchStart" onchange="onNativePickerChange($item.id)"></picker>
+        <div class="wheel-headings">
+          <text class="wheel-heading">{{ labels.tempoTens }}</text>
+          <text class="wheel-heading">{{ labels.tempoOnes }}</text>
+        </div>
+        <div class="wheels">
+          <picker for="{{ pickerEntries }}" tid="id" class="tempo-picker" type="text" range="{{ $item.options }}" selected="{{ $item.selected }}" style="selected-color: {{ colors.accent }}; selected-background-color: {{ colors.background }};" ontouchstart="onPickerTouchStart" onchange="onNativePickerChange($item.id)"></picker>
+        </div>
         <text class="unit">{{ bpm }} · {{ meter === '6/8' ? labels.dottedUnit : labels.quarterUnit }}</text>
       </div>
       <input id="tap" class="tap" style="background-color: {{ tapLit ? colors.pulse : colors.accent }}" type="button" value="{{ labels.tap }}" disabled="{{ !ready }}" onclick="tapTempo" />
@@ -25,12 +31,17 @@ const { getStrings } = require('../../common/strings')
 const { getTheme } = require('../../common/themes')
 const { createPageSwipe } = require('../../common/page-swipe')
 
+const TENS_OPTIONS = Array.from({ length: 21 }, (_, index) => String(MIN_BPM + index * 10))
+const ONES_OPTIONS = Array.from({ length: 10 }, (_, index) => String(index))
+const ZERO_OPTION = ['0']
+
 export default {
   private: {
     ready: false, bpm: DEFAULT_BPM, meter: '4/4', colors: getTheme(),
-    minBpm: MIN_BPM,
-    pickerEntries: [{ id: 0, selected: DEFAULT_BPM - MIN_BPM }],
-    bpmOptions: Array.from({ length: MAX_BPM - MIN_BPM + 1 }, (_, index) => String(MIN_BPM + index)),
+    pickerEntries: [
+      { id: 0, options: TENS_OPTIONS, selected: (DEFAULT_BPM - MIN_BPM) / 10 },
+      { id: 1, options: ONES_OPTIONS, selected: 0 }
+    ],
     labels: getStrings('en'), tapHint: 'Tap 4 times', tapLit: false,
     status: 'Loading preferences...', warning: false
   },
@@ -39,6 +50,7 @@ export default {
     this._navigating = false
     this._statusKey = 'loading'
     this._pickerBpm = DEFAULT_BPM
+    this._nextPickerId = 2
     this._swipe = createPageSwipe(() => Date.now())
     this._tapTimer = null
     this._feedbackTimer = null
@@ -90,19 +102,27 @@ export default {
   retrySave() {
     if (this.controlsReady() && this._swipe.canClick()) this._store.retry()
   },
-  syncPicker(value) {
+  syncPicker(value, originColumn) {
     if (this._pickerBpm === value) return
+    const previous = this._pickerBpm
     this._pickerBpm = value
-    // selected is an initial value. Recreate only for external changes (e.g.
-    // Tap Tempo); a wheel-originated selection must not restart its own snap.
-    this.pickerEntries = [{ id: this.pickerEntries[0].id + 1, selected: value - MIN_BPM }]
+    const before = [Math.floor((previous - MIN_BPM) / 10), previous % 10]
+    const after = [Math.floor((value - MIN_BPM) / 10), value % 10]
+    const next = this.pickerEntries.map((entry, column) => {
+      const options = column === 0 ? TENS_OPTIONS : value === MAX_BPM ? ZERO_OPTION : ONES_OPTIONS
+      // Never feed a native selection back into its own snapping wheel. Only
+      // replace the other column when its value/range changes, or for Tap Tempo.
+      if (entry.options.length === options.length &&
+          (column === originColumn || before[column] === after[column])) return entry
+      return { id: this._nextPickerId++, options, selected: after[column] }
+    })
+    if (next.some((entry, column) => entry !== this.pickerEntries[column])) this.pickerEntries = next
   },
-  setTempo(value, fromTap, fromPicker) {
+  setTempo(value, fromTap, originColumn) {
     if (!this.controlsReady() || typeof value !== 'number' || !isFinite(value)) return
     if (!fromTap) this.resetTap()
     const next = Math.max(MIN_BPM, Math.min(MAX_BPM, Math.round(value)))
-    if (fromPicker) this._pickerBpm = next
-    else this.syncPicker(next)
+    this.syncPicker(next, originColumn)
     if (next === this.bpm) { this._store.retry(); return }
     this.bpm = next
     this.save({ bpm: next })
@@ -119,26 +139,25 @@ export default {
     if (direction) this.onPageSwipe({ direction })
   },
   onNativePickerChange(generation, event) {
-    if (generation !== this.pickerEntries[0].id) return
-    this.onPickerChange(event)
-  },
-  onPickerChange(event) {
     if (!event || !this.controlsReady()) return
+    const column = this.pickerEntries.findIndex(entry => entry.id === generation)
+    if (column < 0) return // Ignore events from a replaced wheel.
+    const options = this.pickerEntries[column].options
     let value
-    // The official example reads newValue. Do not discard a valid selected value
-    // just because a runtime omits or differently encodes the supplementary index.
     if (event.newValue !== undefined) {
       if (typeof event.newValue !== 'number' &&
           (typeof event.newValue !== 'string' || !/^\d+$/.test(event.newValue))) return
       value = Number(event.newValue)
     } else if (Number.isInteger(event.newSelected) && event.newSelected >= 0 &&
-               event.newSelected < this.bpmOptions.length) {
-      value = MIN_BPM + event.newSelected
+               event.newSelected < options.length) {
+      value = Number(options[event.newSelected])
     } else return
-    if (!Number.isInteger(value) || value < MIN_BPM || value > MAX_BPM) return
+    if (!options.includes(String(value))) return
+    const next = column === 0 ? Math.min(MAX_BPM, value + this.bpm % 10)
+      : Math.floor(this.bpm / 10) * 10 + value
     // Native echoes must not reset tap sampling or trigger automatic save retries.
-    if (value === this.bpm) return
-    this.setTempo(value, false, true)
+    if (next === this.bpm) return
+    this.setTempo(next, false, column)
   },
   onPageSwipe(event) { if (event && event.direction === 'right') this.goBack(true) },
   tapTempo() {
@@ -198,7 +217,10 @@ export default {
 /* Keep the native wheel and its label in normal flow, without a clipped viewport.
    Equal font metrics avoid resizing the selected text over the candidate rows. */
 .tempo-value { width: 280px; flex-shrink: 0; flex-direction: column; align-items: center; }
-.tempo-picker { width: 240px; flex-shrink: 0; color: #a8b5c5; font-size: 28px; selected-font-size: 28px; }
+.wheel-headings { width: 252px; height: 20px; flex-shrink: 0; flex-direction: row; }
+.wheel-heading { width: 126px; height: 20px; color: #a8b5c5; font-size: 14px; text-align: center; }
+.wheels { width: 252px; flex-shrink: 0; flex-direction: row; align-items: center; }
+.tempo-picker { width: 126px; flex-shrink: 0; color: #a8b5c5; font-size: 28px; selected-font-size: 28px; }
 .unit { width: 280px; height: 24px; flex-shrink: 0; color: #a8b5c5; font-size: 16px; text-align: center; }
 .tap { width: 192px; height: 192px; flex-shrink: 0; border-radius: 96px; color: #222222; font-size: 26px; }
 .tap-guide { width: 304px; height: 22px; color: #a8b5c5; font-size: 16px; text-align: center; }

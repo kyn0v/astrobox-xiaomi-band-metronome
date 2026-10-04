@@ -2,8 +2,8 @@
   "package": "org.bandmetronome.app",
   "name": "Metronome",
   "icon": "/common/icon.png",
-  "versionName": "0.5.8",
-  "versionCode": 16,
+  "versionName": "0.5.9",
+  "versionCode": 17,
   "minAPILevel": 1,
   "deviceTypeList": ["watch"],
   "features": [

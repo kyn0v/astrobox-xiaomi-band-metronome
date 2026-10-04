@@ -35,7 +35,7 @@ test('first deferred load mounts once with saved BPM, meter and status and never
   const tempo = h.createPage('tempo')
   const mounts = observeMount(tempo)
   assert.equal(tempo.ready, false)
-  tempo.onPickerChange({ newSelected: 70, newValue: '120' })
+  tempo.onNativePickerChange(tempo.pickerEntries[0].id, { newValue: '120' })
   h.finishLoad()
   assert.deepEqual(mounts, [{ bpm: 173, meter: '6/8', warning: false }])
   assert.deepEqual(h.calls.writes, [])
@@ -59,7 +59,7 @@ test('retained tempo pages stay current while hidden and do not remount on retur
   const mounts = observeMount(tempo)
   tempo.onShow()
   assert.deepEqual(mounts, [])
-  tempo.onPickerChange({ newSelected: 161, newValue: '211' }) // Native selection echo.
+  tempo.onNativePickerChange(tempo.pickerEntries[0].id, { newValue: '210' }) // Native selection echo.
   assert.equal(h.calls.writes.length, writes)
   assert.equal(h.stored().bpm, 211)
   tempo.onHide()
