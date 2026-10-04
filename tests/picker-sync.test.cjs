@@ -67,7 +67,8 @@ test('Tap Tempo replaces only changed columns and ignores discarded-wheel callba
   h.clock.advance(500)
   h.tempo.tapTempo()
   assert.equal(h.tempo.pickerEntries, entries)
-  assert.equal(h.tempo.tapHint, 'Tempo detected: 120')
+  assert.equal(h.tempo.bpm, 120)
+  assert.equal(h.tempo.notice, '')
 })
 
 test('external changes replace only columns with a changed digit or range', () => {
@@ -87,15 +88,15 @@ test('external changes replace only columns with a changed digit or range', () =
   }
 })
 
-test('hundreds changes invalidate old tens events even when the previous digit is still legal', () => {
+test('clamping replaces adjusted digits and rejects their old callbacks', () => {
   const h = setup({ preferences: { bpm: 123 } })
   const oldTens = h.tempo.pickerEntries[1]
   choose(h.tempo, 0, 0)
-  assert.equal(h.tempo.bpm, 53)
+  assert.equal(h.tempo.bpm, 50)
   h.tempo.onNativePickerChange(oldTens.id, { newValue: '8' })
-  assert.equal(h.tempo.bpm, 53)
+  assert.equal(h.tempo.bpm, 50)
   choose(h.tempo, 1, 8)
-  assert.equal(h.tempo.bpm, 83)
+  assert.equal(h.tempo.bpm, 80)
 })
 
 test('warm/cold initialization and hidden updates set all digits before showing', () => {
@@ -137,27 +138,49 @@ test('three equal-width wheels retain native sizing without duplicate labels or 
     assert.match(style, /flex-shrink: 0/)
   }
   const style = source.match(/\.tempo-picker \{([^}]+)\}/)[1]
-  assert.match(style, /width: 84px/)
+  assert.match(style, /width: 64px/)
+  assert.match(style, /font-size: 36px/)
+  assert.match(style, /font-weight: bold/)
   assert.equal(style.match(/(?:^|;)\s*font-size:\s*(\d+px)/)[1], style.match(/selected-font-size:\s*(\d+px)/)[1])
   assert.match(template, /for="\{\{ pickerEntries \}\}" tid="id"/)
-  assert.match(template, /<text class="unit">BPM<\/text>/)
-  assert.doesNotMatch(template, /wheel-heading|tap-guide|\{\{ bpm \}\}|quarterUnit|dottedUnit/)
+  assert.match(template, /class="unit" onclick="retrySave"/)
+  assert.match(template, /warning \? status : notice \|\| 'BPM'/)
+  const readyContent = template.slice(template.indexOf('<div class="content"'))
+  assert.doesNotMatch(readyContent, /class="hint"|tapHint|tap-guide/)
+  assert.doesNotMatch(template, /wheel-heading|\{\{ bpm \}\}|quarterUnit|dottedUnit/)
   assert.equal((template.match(/onclick="retrySave"/g) || []).length, 1)
 })
 
-test('single hint follows meter and alternates between guidance, tap progress and result', () => {
+test('range notices expire, are replaced by newer notices, and clear on leaving', () => {
   const h = setup()
-  assert.equal(h.tempo.tapHint, 'Tap along with the beat')
-  h.tempo.tapTempo()
-  assert.equal(h.tempo.tapHint, 'Taps: 1/4')
-  h.page._store.update({ meter: '6/8' })
-  assert.equal(h.tempo.tapHint, 'Tap the two main beats')
+  choose(h.tempo, 0, 9)
+  assert.equal(h.tempo.notice, 'Maximum: 250 BPM')
+  h.clock.advance(1000)
+  choose(h.tempo, 0, 0)
+  choose(h.tempo, 1, 0)
+  assert.equal(h.tempo.notice, 'Minimum: 50 BPM')
+  h.clock.advance(800)
+  assert.equal(h.tempo.notice, 'Minimum: 50 BPM')
+  h.clock.advance(1000)
+  assert.equal(h.tempo.notice, '')
   assert.equal(h.clock.pending(), 0)
-  for (let i = 0; i < 4; i++) {
-    if (i) h.clock.advance(1000)
-    h.tempo.tapTempo()
+  for (const action of ['onHide', 'onBackPress', 'goBack', 'onDestroy']) {
+    const other = setup()
+    choose(other.tempo, 0, 9)
+    other.tempo[action]()
+    assert.equal(other.tempo.notice, '')
+    assert.equal(other.clock.pending(), 0)
   }
-  assert.equal(h.tempo.tapHint, 'Tempo detected: 60')
-  h.tempo.resetTap()
-  assert.equal(h.tempo.tapHint, 'Tap the two main beats')
+})
+
+test('tap feedback is visual only; a meter change still resets sampling', () => {
+  const h = setup()
+  h.tempo.tapTempo()
+  assert.equal(h.tempo.tapLit, true)
+  assert.equal(h.tempo.notice, '')
+  assert.equal(h.tempo.tapHint, undefined)
+  h.clock.advance(100)
+  assert.equal(h.tempo.tapLit, false)
+  h.page._store.update({ meter: '6/8' })
+  assert.equal(h.clock.pending(), 0)
 })

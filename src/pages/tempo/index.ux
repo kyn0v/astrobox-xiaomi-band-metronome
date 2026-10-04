@@ -9,10 +9,9 @@
         <div class="wheels">
           <picker for="{{ pickerEntries }}" tid="id" class="tempo-picker" type="text" range="{{ $item.options }}" selected="{{ $item.selected }}" style="selected-color: {{ colors.accent }}; selected-background-color: {{ colors.background }};" ontouchstart="onPickerTouchStart" onchange="onNativePickerChange($item.id)"></picker>
         </div>
-        <text class="unit">BPM</text>
+        <text class="unit" onclick="retrySave">{{ warning ? status : notice || 'BPM' }}</text>
       </div>
       <input id="tap" class="tap" style="background-color: {{ tapLit ? colors.pulse : colors.accent }}" type="button" value="{{ labels.tap }}" disabled="{{ !ready }}" onclick="tapTempo" />
-      <text class="hint" onclick="retrySave">{{ warning || status === labels.saving ? status : tapHint }}</text>
     </div>
   </div>
 </template>
@@ -27,27 +26,16 @@ const { getTheme } = require('../../common/themes')
 const { createPageSwipe } = require('../../common/page-swipe')
 
 const DIGITS = Array.from({ length: 10 }, (_, index) => String(index))
-const HUNDREDS = ['0', '1', '2']
-const LOW_TENS = DIGITS.slice(5)
-const HIGH_TENS = DIGITS.slice(0, 6)
-const ZERO_OPTION = ['0']
-
 function digitColumns(bpm) {
-  const hundreds = Math.floor(bpm / 100)
-  const tens = Math.floor(bpm / 10) % 10
-  const tensOptions = hundreds === 0 ? LOW_TENS : hundreds === 2 ? HIGH_TENS : DIGITS
-  return [
-    { options: HUNDREDS, selected: hundreds },
-    { options: tensOptions, selected: tensOptions.indexOf(String(tens)) },
-    { options: bpm === MAX_BPM ? ZERO_OPTION : DIGITS, selected: bpm % 10 }
-  ]
+  return [Math.floor(bpm / 100), Math.floor(bpm / 10) % 10, bpm % 10]
+    .map(selected => ({ options: DIGITS, selected }))
 }
 
 export default {
   private: {
     ready: false, bpm: DEFAULT_BPM, meter: '4/4', colors: getTheme(),
     pickerEntries: digitColumns(DEFAULT_BPM).map((entry, id) => Object.assign({ id }, entry)),
-    labels: getStrings('en'), tapHint: '', tapLit: false,
+    labels: getStrings('en'), notice: '', tapLit: false,
     status: 'Loading preferences...', warning: false
   },
   onInit() {
@@ -59,6 +47,7 @@ export default {
     this._swipe = createPageSwipe(() => Date.now())
     this._tapTimer = null
     this._feedbackTimer = null
+    this._noticeTimer = null
     this._taps = createTapTempo()
     this._store = this.$app.$def.getPreferences()
     this.refreshLanguage()
@@ -98,6 +87,7 @@ export default {
     try { language = configuration.getLocale().language } catch (error) {}
     this.labels = getStrings(language)
     this.status = this.labels[this._statusKey]
+    this.clearNotice()
     this.resetTap()
   },
   onConfigurationChanged(event) { if (event && event.type === 'locale') this.refreshLanguage() },
@@ -110,17 +100,30 @@ export default {
   retrySave() {
     if (this.controlsReady() && this._swipe.canClick()) this._store.retry()
   },
-  syncPicker(value, originColumn) {
-    if (this._pickerBpm === value) return
+  showNotice(key) {
+    this.clearNotice()
+    this.notice = this.labels[key]
+    this._noticeTimer = setTimeout(() => {
+      this.notice = ''
+      this._noticeTimer = null
+    }, 1800)
+  },
+  clearNotice() {
+    if (this._noticeTimer !== null && this._noticeTimer !== undefined) clearTimeout(this._noticeTimer)
+    this._noticeTimer = null
+    this.notice = ''
+  },
+  syncPicker(value, originColumn, resetColumn) {
+    if (this._pickerBpm === value && resetColumn === undefined) return
     const previous = this._pickerBpm
     this._pickerBpm = value
     const before = digitColumns(previous)
     const after = digitColumns(value)
     const next = this.pickerEntries.map((entry, column) => {
       const { options, selected } = after[column]
-      // Keep the emitting wheel stable; replace dependent columns only when
-      // their range or selected digit changes. selected is an initial prop.
-      if (entry.options.join(',') === options.join(',') &&
+      // Keep valid native selections stable. An invalid attempted digit must
+      // be reset even when clamping leaves the saved BPM unchanged.
+      if (column !== resetColumn &&
           (column === originColumn || before[column].selected === selected)) return entry
       return { id: this._nextPickerId++, options, selected }
     })
@@ -129,9 +132,16 @@ export default {
   setTempo(value, fromTap, originColumn) {
     if (!this.controlsReady() || typeof value !== 'number' || !isFinite(value)) return
     if (!fromTap) this.resetTap()
-    const next = Math.max(MIN_BPM, Math.min(MAX_BPM, Math.round(value)))
-    this.syncPicker(next, originColumn)
-    if (next === this.bpm) { this._store.retry(); return }
+    const rounded = Math.round(value)
+    const next = Math.max(MIN_BPM, Math.min(MAX_BPM, rounded))
+    const outside = next !== rounded
+    if (outside) this.showNotice(rounded < MIN_BPM ? 'tempoMinimum' : 'tempoMaximum')
+    else this.clearNotice()
+    this.syncPicker(next, outside ? undefined : originColumn, outside ? originColumn : undefined)
+    if (next === this.bpm) {
+      if (originColumn === undefined) this._store.retry()
+      return
+    }
     this.bpm = next
     this.save({ bpm: next })
   },
@@ -161,18 +171,9 @@ export default {
       value = Number(options[event.newSelected])
     } else return
     if (!options.includes(String(value))) return
-    const hundreds = Math.floor(this.bpm / 100)
-    const tens = Math.floor(this.bpm / 10) % 10
-    const ones = this.bpm % 10
-    let next
-    if (column === 0) {
-      // Preserve ones when changing hundreds: 199 -> 249, 123 -> 053.
-      const adjustedTens = value === 0 ? Math.max(5, tens)
-        : value === 2 ? Math.min(ones === 0 ? 5 : 4, tens) : tens
-      next = value * 100 + adjustedTens * 10 + ones
-    } else if (column === 1) {
-      next = Math.min(MAX_BPM, hundreds * 100 + value * 10 + ones)
-    } else next = hundreds * 100 + tens * 10 + value
+    const place = [100, 10, 1][column]
+    const previousDigit = Math.floor(this.bpm / place) % 10
+    const next = this.bpm + (value - previousDigit) * place
     // Native echoes must not reset tap sampling or trigger automatic save retries.
     if (next === this.bpm) return
     this.setTempo(next, false, column)
@@ -189,11 +190,8 @@ export default {
       this.tapLit = false
       this._feedbackTimer = null
     }, 100)
-    if (result.outOfRange) this.tapHint = this.labels.tapRange
-    else if (result.bpm !== null) {
-      this.tapHint = this.labels.tapReady + ': ' + result.bpm
-      this.setTempo(result.bpm, true)
-    } else this.tapHint = this.labels.tapping + ': ' + result.count + '/4'
+    if (result.outOfRange) this.showNotice('tapRange')
+    else if (result.bpm !== null) this.setTempo(result.bpm, true)
   },
   resetTap() {
     if (this._tapTimer !== null && this._tapTimer !== undefined) clearTimeout(this._tapTimer)
@@ -202,26 +200,28 @@ export default {
     this._feedbackTimer = null
     this.tapLit = false
     if (this._taps) this._taps.reset()
-    this.tapHint = this.meter === '6/8' ? this.labels.tapDotted : this.labels.tapQuarter
   },
   goBack(fromGesture) {
     if (!this._visible || this._navigating || (fromGesture !== true && !this._swipe.canClick())) return
     this._navigating = true
+    this.clearNotice()
     this.resetTap()
     router.back()
   },
   onBackPress() {
     if (this._navigating) return true
     this._navigating = true
+    this.clearNotice()
     this.resetTap()
     return false
   },
-  onHide() { this._visible = false; this._swipe.cancel(); this.resetTap() },
+  onHide() { this._visible = false; this._swipe.cancel(); this.clearNotice(); this.resetTap() },
   onDestroy() {
     this._visible = false
     this._unsubscribe()
     this.ready = false
     this._swipe.cancel()
+    this.clearNotice()
     this.resetTap()
   }
 }
@@ -235,8 +235,8 @@ export default {
 /* Keep the native wheel and its label in normal flow, without a clipped viewport.
    Equal font metrics avoid resizing the selected text over the candidate rows. */
 .tempo-value { width: 280px; flex-shrink: 0; flex-direction: column; align-items: center; }
-.wheels { width: 252px; flex-shrink: 0; flex-direction: row; align-items: center; }
-.tempo-picker { width: 84px; flex-shrink: 0; color: #a8b5c5; font-size: 28px; selected-font-size: 28px; }
+.wheels { width: 192px; flex-shrink: 0; flex-direction: row; align-items: center; }
+.tempo-picker { width: 64px; flex-shrink: 0; color: #a8b5c5; font-size: 36px; selected-font-size: 36px; font-weight: bold; }
 .unit { width: 280px; height: 24px; flex-shrink: 0; color: #a8b5c5; font-size: 16px; text-align: center; }
 .tap { width: 192px; height: 192px; flex-shrink: 0; border-radius: 96px; color: #222222; font-size: 26px; }
 .hint { width: 304px; height: 24px; color: #a8b5c5; font-size: 16px; text-align: center; }

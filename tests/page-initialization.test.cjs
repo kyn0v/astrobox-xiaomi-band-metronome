@@ -123,7 +123,8 @@ test('settings propagation does not reset a running beat, hardware-failure disab
   assert.equal(t.bpm, 150)
   h.clock.advance(400)
   t.tapTempo()
-  assert.equal(t.tapHint, 'Tempo detected: 150') // Publication after the fourth tap did not reset sampling.
+  assert.equal(t.tapLit, true) // Publication after the fourth tap did not clear feedback.
+  assert.equal(t.notice, '')
 })
 
 test('store subscriptions immediately replay warm state and isolate snapshots per observer', () => {

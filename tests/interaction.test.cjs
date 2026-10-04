@@ -95,10 +95,12 @@ test('Tap Tempo waits for four taps, estimates 150 BPM, and never starts playbac
   tempo.tapTempo()
   assert.equal(tempo.bpm, 150)
   assert.equal(h.stored().bpm, 150)
-  assert.equal(tempo.tapHint, 'Tempo detected: 150')
+  assert.equal(tempo.notice, '')
+  assert.equal(tempo.tapLit, true)
   assert.deepEqual(h.calls.vibrations, [])
   h.clock.advance(2000)
-  assert.equal(tempo.tapHint, 'Tap along with the beat')
+  assert.equal(tempo.tapHint, undefined)
+  assert.equal(tempo.tapLit, false)
   assert.equal(h.clock.pending(), 0)
   returnHome(h, tempo)
   assert.equal(h.page.bpm, 150)
@@ -114,7 +116,7 @@ test('out-of-range taps leave the previous tempo unchanged', () => {
   tempo.tapTempo()
   for (let i = 0; i < 3; i++) { h.clock.advance(220); tempo.tapTempo() }
   assert.equal(tempo.bpm, 100)
-  assert.equal(tempo.tapHint, 'Use 50–250 BPM')
+  assert.equal(tempo.notice, 'Use 50–250 BPM')
 })
 
 test('manual adjustment clears an unfinished tap sequence', () => {
@@ -126,7 +128,11 @@ test('manual adjustment clears an unfinished tap sequence', () => {
   tempo.onNativePickerChange(tempo.pickerEntries[2].id, { newSelected: 5, newValue: '5' })
   assert.equal(h.clock.pending(), 0)
   tempo.tapTempo()
-  assert.equal(tempo.tapHint, 'Taps: 1/4')
+  for (let i = 0; i < 2; i++) { h.clock.advance(500); tempo.tapTempo() }
+  assert.equal(tempo.bpm, 125)
+  h.clock.advance(500)
+  tempo.tapTempo()
+  assert.equal(tempo.bpm, 120)
 })
 
 for (const method of ['goBack', 'onHide', 'onDestroy', 'onBackPress']) {

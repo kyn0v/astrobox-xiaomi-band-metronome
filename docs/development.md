@@ -19,8 +19,8 @@ npm test
 npm run build
 ```
 
-Current identity: `org.bandmetronome.app`, version **0.5.10**, version code **18**.
-Output: `dist/org.bandmetronome.app.debug.0.5.10.rpk`.
+Current identity: `org.bandmetronome.app`, version **0.5.11**, version code **19**.
+Output: `dist/org.bandmetronome.app.debug.0.5.11.rpk`.
 
 This is a debug **application package, not firmware**, signed with the toolkit's
 shared development key. There are no runtime npm dependencies in the app; npm
@@ -135,27 +135,31 @@ hardware brightness. Position dots continue when Flash is disabled.
 - Moved touches suppress synthetic clicks for 350 ms. Native picker touch streams
   are excluded from navigation.
 - Tempo uses three equal-width official `picker type="text"` digit wheels in
-  hundreds/tens/ones order. Each has at most ten options. Values below 100 show a
-  leading zero (050). Tens are limited to 5–9 for hundreds=0 and 0–5 for hundreds=2;
-  at 250 the ones wheel is locked to zero. Changing hundreds preserves ones and
-  adjusts tens if needed (199 → 249, 123 → 053). Explicitly selecting tens=5 in
-  the 200s resets ones to zero. Leaving 250 restores 0–9.
-  Version 0.5.10 removes column headings, the duplicate combined BPM and the extra
-  tap guide. A single bottom line shows meter-aware guidance, tap progress/result,
-  or save status/error; tapping an error still retries saving.
+  hundreds/tens/ones order. Every column always offers 0–9. Values below 100 show
+  a leading zero (050). An out-of-range selection clamps to 50 or 250 and briefly
+  replaces the BPM unit with a minimum/maximum notice. The attempted wheel is
+  reset even when the saved BPM was already at that boundary; stale callbacks
+  are ignored. No out-of-range value is persisted.
+  Version 0.5.11 removes the bottom guidance/progress/result line. Tap Tempo uses
+  button pulses and updates the digits directly. Only range notices (1.8 seconds)
+  or persistent save/load errors replace the BPM unit. Errors take precedence and
+  remain tappable to retry. Notices are cleared on navigation and destruction.
   Short wheels avoid the previous 201-item list.
   [LVGL issue #7410](https://github.com/lvgl/lvgl/issues/7410) describes long-list
   coordinate limits causing incorrect selected text, consistent with the reported
   symptoms but not confirmed for this device's firmware. This is a bounded-list
   workaround, not a firmware fix. Native rendering still requires device testing.
-- All three wheels use equal 28 px candidate/selected fonts, intrinsic height and a
-  non-shrinking wrapper. Selection is distinguished by color, not font size.
+- All three wheels use equal 36 px candidate/selected fonts, 64 px column widths,
+  intrinsic height and a non-shrinking wrapper. The stylesheet requests bold text;
+  the device's native font support still needs visual confirmation. Selection is
+  distinguished by color, not font size.
 - `selected` is a per-column initialization index, not a feedback binding to BPM.
   Events read `newValue` first, or fall back to `newSelected`; values must belong
   to the emitting column's current options. Saving a native selection does not
   write `selected` back while that wheel is snapping.
 - External tempo changes (including Tap Tempo) replace only the keyed columns
-  whose values or ranges change. Old-instance callbacks are ignored. Returning
+  whose values change. Boundary correction also resets the attempted column.
+  Old-instance callbacks are ignored. Returning
   to the same page, changing theme, and save-status updates do not recreate them.
   Same-value echoes do not write, retry failed saves, or reset tap sampling.
   There is no custom slider, offset correction or timer-based snap workaround.
@@ -199,8 +203,9 @@ and unit tests are not device-compatibility evidence.
 5. At 6/8 and 60 BPM, verify six positions over two seconds. Edit slot 4, switch
    meters and return; each meter retains its own pattern.
 6. Test all three wheels at 050, 099, 100, 153, 165, 199, 249 and 250 BPM.
-   Check hundreds switching (199 → 249, 123 → 053), 249 → 250 → 240 → 249,
-   ones locking/unlocking, row alignment, and the saved BPM on Home. Wheel
+   Try selections below 050 and above 250, including attempts while already at
+   a boundary: check the notice and all three corrected digits. Verify larger
+   fonts, closer spacing and the saved BPM on Home. Wheel
    drags must not navigate or press Tap Tempo. At high tempos,
    check visual timing first; choose Short/None if motor pulses merge.
 7. Tap at 500 ms intervals in simple meters: expect 120 BPM. In 6/8, tap main beats

@@ -2,8 +2,8 @@
 const en = {
   title: 'METRONOME', tempo: 'TEMPO', rhythm: 'RHYTHM', appearance: 'COLORS',
   start: 'Start', stop: 'Stop', tap: 'Tap Tempo',
-  tapping: 'Taps', tapReady: 'Tempo detected', tapRange: 'Use 50–250 BPM',
-  tapQuarter: 'Tap along with the beat', tapDotted: 'Tap the two main beats',
+  tapRange: 'Use 50–250 BPM',
+  tempoMinimum: 'Minimum: 50 BPM', tempoMaximum: 'Maximum: 250 BPM',
   quarterUnit: 'Quarter-note BPM', dottedUnit: 'Dotted-quarter BPM',
   loading: 'Loading preferences...', ready: '← Tempo   ↑ Rhythm   ↓ Colors',
   running: 'Playing', stopped: 'Stopped',
@@ -28,8 +28,8 @@ const en = {
 const zh = {
   title: '节拍器', tempo: '调整速度', rhythm: '节拍编排', appearance: '主题配色',
   start: '开始', stop: '停止', tap: '击拍测速',
-  tapping: '已点击', tapReady: '已识别速度', tapRange: '请使用 50–250 BPM',
-  tapQuarter: '跟随节拍点击', tapDotted: '跟随两大拍点击',
+  tapRange: '请使用 50–250 BPM',
+  tempoMinimum: '最低 50 BPM', tempoMaximum: '最高 250 BPM',
   quarterUnit: '四分音符 BPM', dottedUnit: '附点四分音符 BPM',
   loading: '正在读取偏好', ready: '← 调速  ↑ 节拍  ↓ 配色',
   running: '播放中', stopped: '已停止',
