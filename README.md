@@ -29,7 +29,9 @@
 
 ## 安装与限制
 
-当前版本为 **0.5.11**，处于开发测试阶段，尚未上架 AstroBox 或小米官方商店。可以自行构建 debug 包，通过兼容的 RPK 安装工具（如 AstroBox）安装。[`release/astrobox`](https://github.com/kyn0v/xiaomi-band-metronome/tree/release/astrobox) 分支目前仅用于准备发布资料。
+当前版本为 **0.5.11**。AstroBox 投稿见 [PR #1156](https://github.com/AstralSightStudios/AstroBox-Repo/pull/1156)，是否上架以审核结果为准。
+
+本仓库的 `source` 分支保存源码，[`main`](https://github.com/kyn0v/astrobox-xiaomi-band-metronome/tree/main) 分支由 CreatorConsole 管理安装包和商店图片。
 
 - 目标设备为小米手环 9 Pro（336 × 480），其他机型尚未验证。
 - 仅前台运行。播放时保持亮屏，退出或离开首页后停止。
@@ -39,7 +41,7 @@
 
 ## 开发
 
-需要 Node.js 20+ 和 npm。重新生成图标时需要 Python 3。
+请在 `source` 分支开发，不要把源码合并到发布资源所在的 `main`。需要 Node.js 20+ 和 npm；重新生成图标时需要 Python 3。
 
 ```bash
 npm ci --ignore-scripts
@@ -53,6 +55,6 @@ npm run build
 
 ## 反馈
 
-请在 [Issues](https://github.com/kyn0v/xiaomi-band-metronome/issues) 中附上设备型号、固件版本、应用版本和复现步骤。截图或视频请先遮住个人信息。
+请在 [Issues](https://github.com/kyn0v/astrobox-xiaomi-band-metronome/issues) 中附上设备型号、固件版本、应用版本和复现步骤。截图或视频请先遮住个人信息。
 
 本项目不是小米或 AstroBox 官方应用。

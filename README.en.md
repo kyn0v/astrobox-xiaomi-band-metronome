@@ -29,7 +29,9 @@ In 6/8, BPM counts dotted quarters. The six slots are grouped 3+3, so a bar last
 
 ## Installation and limitations
 
-The current version is **0.5.11**, in development/testing. It is not listed on AstroBox or Xiaomi's official store. You can build a debug RPK and install it with a compatible tool such as AstroBox. The [`release/astrobox`](https://github.com/kyn0v/xiaomi-band-metronome/tree/release/astrobox) branch currently contains release preparation materials only.
+The current version is **0.5.11**. See [AstroBox PR #1156](https://github.com/AstralSightStudios/AstroBox-Repo/pull/1156) for submission status; a submission does not establish store approval.
+
+This repository's `source` branch contains code. CreatorConsole manages packages and store images on [`main`](https://github.com/kyn0v/astrobox-xiaomi-band-metronome/tree/main).
 
 - Target device: Xiaomi Smart Band 9 Pro (336 × 480). Other devices are unverified.
 - Foreground operation only. Playback keeps the screen on and stops when you exit or leave Home.
@@ -39,7 +41,7 @@ The current version is **0.5.11**, in development/testing. It is not listed on A
 
 ## Development
 
-Requires Node.js 20+ and npm. Python 3 is needed to regenerate icons.
+Develop on `source`; do not merge source files into the resource branch `main`. Requires Node.js 20+ and npm. Python 3 is needed to regenerate icons.
 
 ```bash
 npm ci --ignore-scripts
@@ -53,6 +55,6 @@ The current build uses the toolkit's shared debug signing key and is not a produ
 
 ## Feedback
 
-Include the device model, firmware version, app version, and reproduction steps when reporting an [issue](https://github.com/kyn0v/xiaomi-band-metronome/issues). Redact personal information from screenshots or videos.
+Include the device model, firmware version, app version, and reproduction steps when reporting an [issue](https://github.com/kyn0v/astrobox-xiaomi-band-metronome/issues). Redact personal information from screenshots or videos.
 
 This is not an official Xiaomi or AstroBox application.

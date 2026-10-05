@@ -37,7 +37,10 @@ emulator. Keep debugger services on a trusted local network.
 
 ## Manual signed release build
 
-Use GitHub **Actions → Build signed RPK → Run workflow**, selecting `main`.
+In `kyn0v/astrobox-xiaomi-band-metronome`, use GitHub **Actions → Build signed RPK → Run workflow**, selecting **`source`**.
+An identical workflow entry is also kept on the default resource branch `main`
+so GitHub exposes the manual-run UI. Runs dispatched on `main` are skipped;
+select `source`. Keep both workflow copies synchronized when editing the build.
 The workflow only supports `workflow_dispatch`; it does not run on pushes or PRs,
 write branches, create GitHub Releases, or submit AstroBox PRs. Other branch
 selections are skipped. Each run builds its exact dispatched source commit.
@@ -222,9 +225,17 @@ phone disconnection was not established; watch for recurrence during device test
 
 ## Publishing and privacy
 
-`main` contains source. The independent `release/astrobox` branch is reserved for
-RPKs, `manifest_v2.json`, icon, cover, screenshots, and release notes. It is currently
-preparation-only. There is no automated publishing workflow or store approval.
+The repository `kyn0v/astrobox-xiaomi-band-metronome` uses `source` for the full
+source history and `main` for CreatorConsole-managed RPKs, metadata and images.
+Do not merge these branches. Only the manual build workflow is mirrored to `main`
+for GitHub's workflow discovery. This migration preserves the signing certificate;
+repository Secrets were transferred sealed for the destination's public key, with
+no plaintext key downloaded locally.
+
+Use CreatorConsole for store submissions and resource updates. Keep the active
+submission branch in `kyn0v/AstroBox-Repo`: PR #1156 is based on that fork, not on
+this project's `source`. Resource changes must be referenced by a new fixed commit
+in the store submission. Do not force-rewrite commits referenced by the store.
 
 Before public binary distribution:
 
