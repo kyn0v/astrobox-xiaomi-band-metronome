@@ -24,6 +24,11 @@
       "title": "Repo",
       "url": "https://github.com/kyn0v/astrobox-xiaomi-band-metronome",
       "icon": "github-logo"
+    },
+    {
+      "title": "Source",
+      "url": "https://github.com/kyn0v/astrobox-xiaomi-band-metronome/tree/source",
+      "icon": "github-logo"
     }
   ],
   "downloads": {
