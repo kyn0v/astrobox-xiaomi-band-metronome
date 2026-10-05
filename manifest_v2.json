@@ -11,7 +11,7 @@
       "media/20261005110554_6.png"
     ],
     "icon": "media/icon.png",
-    "cover": "media/手环节拍器-封面-1200x800.png",
+    "cover": "media/手环节拍器-封面-矢量版.svg",
     "author": [
       {
         "name": "vh4sg5scfb",
@@ -23,11 +23,6 @@
     {
       "title": "Repo",
       "url": "https://github.com/kyn0v/astrobox-xiaomi-band-metronome",
-      "icon": "github-logo"
-    },
-    {
-      "title": "Source",
-      "url": "https://github.com/kyn0v/astrobox-xiaomi-band-metronome/tree/source",
       "icon": "github-logo"
     }
   ],

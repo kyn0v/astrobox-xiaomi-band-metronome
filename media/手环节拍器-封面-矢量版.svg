@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3600" height="2400" viewBox="0 0 1200 800" role="img" aria-labelledby="title desc">
+  <title id="title">手环节拍器</title>
+  <desc id="desc">小米手环 9 Pro 节拍器封面。右侧为参照应用重绘的矢量界面示意，并非实机截图。</desc>
+  <defs>
+    <style>
+      text { font-family: "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif; }
+      .title { font-weight: 600; }
+      .ui { font-weight: 400; text-anchor: middle; }
+    </style>
+  </defs>
+  <rect width="1200" height="800" fill="#111821"/>
+  <rect x="640" width="560" height="800" fill="#17242b"/>
+  <rect x="72" y="108" width="64" height="8" rx="4" fill="#68e3b8"/>
+  <text class="title" x="66" y="268" font-size="108" fill="#ffffff">手环</text>
+  <text class="title" x="66" y="406" font-size="126" fill="#68e3b8">节拍器</text>
+  <text x="74" y="535" font-size="44" font-weight="500" fill="#ffffff">50–250 BPM</text>
+  <path d="M74 603H520" stroke="#374650" stroke-width="2"/>
+  <text x="74" y="666" font-size="32" font-weight="500" fill="#c1d0d9">小米手环 9 Pro</text>
+
+  <!-- Vector presentation, not a device screenshot. -->
+  <rect x="695" y="84" width="450" height="628" rx="38" fill="#10151e" stroke="#3d5659" stroke-width="2"/>
+  <g class="ui">
+    <text x="920" y="142" font-size="34" fill="#68e3b8">4/4</text>
+    <text x="920" y="238" font-size="72" fill="#f1f5f9">120</text>
+    <text x="920" y="274" font-size="22" fill="#a8b5c5">四分音符 BPM</text>
+    <circle cx="920" cy="410" r="122" fill="#68e3b8"/>
+    <path d="M897 376L897 444L952 410Z" fill="#172f2b"/>
+    <g fill="#233041">
+      <circle cx="864" cy="560" r="8"/>
+      <circle cx="901" cy="560" r="8"/>
+      <circle cx="938" cy="560" r="8"/>
+      <circle cx="975" cy="560" r="8"/>
+    </g>
+    <g fill="none" stroke="#68e3b8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="801" y="602" width="15" height="25" rx="2"/>
+      <path d="M795 602L790 607L794 613L790 619L795 627M822 602L827 607L823 613L827 619L822 627"/>
+      <circle cx="1031" cy="614" r="9"/>
+      <path d="M1031 596V591M1031 632V637M1013 614H1008M1049 614H1054M1018 601L1014 597M1044 627L1048 631M1018 627L1014 631M1044 601L1048 597"/>
+    </g>
+    <text x="920" y="680" font-size="23" fill="#b3becb">← 调速　↑ 节拍　↓ 配色</text>
+    <text x="920" y="755" font-size="18" fill="#a8b5c5">界面示意</text>
+  </g>
+</svg>
