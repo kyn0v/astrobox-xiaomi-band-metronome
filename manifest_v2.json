@@ -1,0 +1,37 @@
+{
+  "item": {
+    "id": "org.bandmetronome.app",
+    "restype": "quick_app",
+    "name": "手环节拍器",
+    "description": "小米手环 9 Pro 上的离线节拍器。支持 50–250 BPM、数字滚轮调速、击拍测速，以及 2/4、3/4、4/4、6/8 拍号。每个拍位可设置长振动、短振动或无振动，振动和屏幕闪烁可独立开关，支持四种配色及中英文界面。仅前台运行；长振动表示持续时间更长，并非力度更强，高速下可能重叠。",
+    "preview": [
+      "media/1.png",
+      "media/20261005110359_4.png",
+      "media/20261005110444_5.png",
+      "media/20261005110554_6.png"
+    ],
+    "icon": "media/icon.png",
+    "cover": "media/手环节拍器-封面-1200x800.png",
+    "author": [
+      {
+        "name": "vh4sg5scfb",
+        "bindABAccount": true
+      }
+    ]
+  },
+  "links": [
+    {
+      "title": "Repo",
+      "url": "https://github.com/kyn0v/xiaomi-band-metronome",
+      "icon": "github-logo"
+    }
+  ],
+  "downloads": {
+    "xmb9p": {
+      "version": "0.5.11",
+      "file_name": "downloads/org.bandmetronome.app.release.0.5.11.rpk",
+      "versionCode": 19
+    }
+  },
+  "ext": {}
+}
